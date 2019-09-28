@@ -1,0 +1,94 @@
+<html>
+<head>
+    <title>ESP32 XBee Log</title>
+    <script src="jquery-3.4.1.min.js"></script>
+    <script src="bootstrap-4.2.1.bundle.min.js"></script>
+    <link rel="stylesheet" href="bootstrap-4.2.1.min.css">
+    <style>
+        #table tbody {
+            font-family: "Courier New", Courier, monospace;
+        }
+    </style>
+    <script>
+        $(function() {
+            var table = $("#table");
+            var tbody = table.find('tbody');
+
+            var regex = /(?<level>[VDIWE]) \((?<time>\d+)\) (?<tag>[a-zA-Z_-]+): (?<comment>.*)/;
+
+            var update = function() {
+                $.get('log', function(data) {
+                    var lines = data.split("\n");
+                    window.lines = lines;
+
+                    setTimeout(update, 2500);
+
+                    for (var line of lines) {
+                        var match = line.match(regex);
+
+                        if (match === null && !line.empty()) {
+                            console.log("Discarded: " + line);
+                            continue;
+                        }
+
+                        var levelBadge = $("<span class='badge'></span>");
+
+                        switch (match.groups.level) {
+                            case 'V':
+                                levelBadge.addClass('badge-light').text("VERBOSE");
+                                break;
+                            case 'D':
+                                levelBadge.addClass('badge-secondary').text("DEBUG");
+                                break;
+                            case 'I':
+                                levelBadge.addClass('badge-success').text("INFO");
+                                break;
+                            case 'W':
+                                levelBadge.addClass('badge-warning').text("WARN");
+                                break;
+                            case 'E':
+                                levelBadge.addClass('badge-danger').text("ERROR");
+                                break;
+                        }
+
+                        var row = $("<tr></tr>")
+                            .append($("<td>1</td>"))
+                            .append($("<td>" + match.groups.time + "ms</td>"))
+                            .append($("<td></td>").append(levelBadge))
+                            .append($("<td>" + match.groups.tag + "</td>"))
+                            .append($("<td>" + match.groups.comment + "</td>"));
+
+                        tbody.append(row);
+                    }
+                });
+            };
+
+            update();
+        })
+    </script>
+</head>
+<body class="bg-light">
+    <div class="container">
+        <div class="pt-5 text-center">
+            <h2>ESP32 XBee Log</h2>
+            <p class="lead">The device log will be loaded automatically below. Make sure that you have at most one log page open at a time. </p>
+        </div>
+        <div class="row">
+            <table id="table" class="table">
+                <thead>
+                    <tr>
+                        <th scope="col">#</th>
+                        <th scope="col">Time</th>
+                        <th scope="col">Level</th>
+                        <th scope="col">Tag</th>
+                        <th scope="col">Comment</th>
+                    </tr>
+                </thead>
+                <tbody>
+
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

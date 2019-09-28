@@ -1,0 +1,605 @@
+<html>
+<head>
+    <title>ESP32 XBee Config</title>
+    <script src="jquery-3.4.1.min.js"></script>
+    <script src="bootstrap-4.2.1.bundle.min.js"></script>
+    <link rel="stylesheet" href="bootstrap-4.2.1.min.css">
+    <style>
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            /* display: none; <- Crashes Chrome on hover */
+            -webkit-appearance: none;
+            margin: 0; /* <-- Apparently some margin are still there even though it's hidden */
+        }
+
+        input[type=number] {
+            -moz-appearance:textfield; /* Firefox */
+        }
+
+        .card .card-body {
+            transition: all ease-in-out 0.25s;
+        }
+
+        .card.disabled .card-body {
+            opacity: 0.75;
+            filter: blur(5px);
+            pointer-events: none;
+        }
+    </style>
+    <script>
+        $.fn.serializeObject = function() {
+            var o = {};
+            var a = this.serializeArray();
+            $.each(a, function() {
+                if (o[this.name]) {
+                    if (!o[this.name].push) {
+                        o[this.name] = [o[this.name]];
+                    }
+                    o[this.name].push(this.value || '');
+                } else {
+                    o[this.name] = this.value || '';
+                }
+            });
+            return o;
+        };
+
+        $(function() {
+
+            var form = $("#form");
+
+            form.on('submit', function(e) {
+                e.preventDefault();
+
+                console.log($(this).serializeObject());
+
+                $.post('config', JSON.stringify($(this).serializeObject()), function() {
+                    console.log("Done");
+                });
+            });
+
+            form.find("input[type='checkbox']").each(function() {
+                var self = $(this);
+                var hidden = $("<input>")
+                    .attr('name', self.attr('name'))
+                    .attr('type', 'hidden')
+                    .data('checkbox', true)
+                    .attr('value', '0')
+                    .prop('disabled', self.prop('checked'))
+                    .insertAfter(self);
+                $(this).on('change', function() {
+                    hidden.prop('disabled', self.prop('checked'));
+                });
+            });
+
+            var checkDisableIfs = function() {
+                form.find("[data-disable-if]").each(function() {
+                    var disabled = form.find($(this).data('disable-if')).length > 0;
+                    $(this).attr('disabled', disabled);
+                    if (disabled) {
+                        $(this).addClass('disabled');
+                    } else {
+                        $(this).removeClass('disabled');
+                    }
+                });
+            };
+
+            form.find("input, select").on('change', checkDisableIfs);
+            checkDisableIfs();
+
+            $.getJSON('config', function(data) {
+                for (var key in data) {
+                    if (!data.hasOwnProperty(key)) continue;
+                    var value = data[key];
+
+                    console.log(key + " = " + value);
+                }
+
+                form.find(':input').each(function() {
+                    if (this.name && typeof data[this.name] !== 'undefined') {
+                        var names = data[this.name];
+                        var $this = $(this);
+                        if(Object.prototype.toString.call(names) !== '[object Array]'){
+                            names = [names]; //backwards compat to old version of this code
+                        }
+                        if(this.type === 'checkbox' || this.type === 'radio' || (this.type === 'hidden' && $this.data('checkbox'))) {
+                            var val = $this.val();
+                            var found = false;
+                            for(var i = 0; i < names.length; i++){
+                                if(names[i] == val){
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            $this.prop('checked', found);
+                            if (this.type === 'hidden') $this.prop('disabled', !found);
+                        } else {
+                            $this.val(names[0]);
+                        }
+                    }
+                });
+
+                checkDisableIfs();
+            });
+        });
+
+        function autoTab(target) {
+            var length = target.value.length;
+            if (length >= target.maxLength) {
+                target.value = target.value.slice(-1);
+                var next = target;
+                while (next = next.nextElementSibling) {
+                    if (next == null)
+                        break;
+                    if (next.tagName.toLowerCase() === "input") {
+                        next.focus();
+                        next.select();
+                        break;
+                    }
+                }
+            } else if (length === 0) {
+                var previous = target;
+                while (previous = previous.previousElementSibling) {
+                    if (previous == null)
+                        break;
+                    if (previous.tagName.toLowerCase() === "input") {
+                        previous.focus();
+                        break;
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-light">
+    <div class="container">
+        <div class="pt-5 text-center">
+            <h2>ESP32 XBee Configuration</h2>
+            <p class="lead">Adjust the settings below and then click on "Save All" at the bottom of the page. The device will restart with the new settings applied. If you have adjusted WiFi settings the device may be moved onto a new IP address, or require you to reconnect to its access point.</p>
+        </div>
+        <form class="needs-validation" id="form" novalidate>
+            <div class="row mb-5">
+                <div class="col-xl-6">
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            Admin (this page)
+                        </div>
+                        <div class="card-body">
+                            <div class="form-row mb-3">
+                                <div class="col-4">
+                                    <label>Auth method</label>
+                                    <select name="admin_auth_method" class="custom-select">
+                                        <option value="0" selected>Open (dangerous)</option>
+                                        <option value="1">Button press</option>
+                                        <option value="2">Access point devices only</option>
+                                        <option value="3">Username/password</option>
+                                    </select>
+                                </div>
+                                <div class="col-4">
+                                    <label>Username</label>
+                                    <input type="text" name="admin_username" data-disable-if="select[name='admin_auth_method'] > option[value!='3']:selected" class="form-control" maxlength="32"/>
+                                </div>
+                                <div class="col-4">
+                                    <label>Password</label>
+                                    <input type="password" name="admin_password" data-disable-if="select[name='admin_auth_method'] > option[value!='3']:selected" class="form-control" maxlength="64"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div data-disable-if="input[type='checkbox'][name='w_ap_active']:not(:checked)" class="card mb-3">
+                        <div class="card-header">
+                            WiFi access point (hotspot)
+                            <div class="custom-control custom-switch d-inline float-right active">
+                                <input type="checkbox" name="w_ap_active" value="1" checked class="custom-control-input" id="switch-wifi-ap">
+                                <label class="custom-control-label" for="switch-wifi-ap"></label>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-row mb-3">
+                                <div class="col-6">
+                                    <label>SSID</label>
+                                    <div class="input-group">
+                                        <input type="text" name="w_ap_ssid" class="form-control" maxlength="32">
+                                        <div class="input-group-append btn-group-toggle" data-toggle="buttons">
+                                            <label class="btn btn-outline-secondary">
+                                                <input type="checkbox" name="w_ap_ssid_hid" value="1"> Hidden
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <label>Password</label>
+                                    <div class="input-group">
+                                        <input type="password" name="w_ap_pass" data-disable-if="select[name='w_ap_auth_mode'] > option[value='0']:selected" class="form-control">
+                                        <select name="w_ap_auth_mode" class="custom-select">
+                                            <option value="0" selected>Open</option>
+                                            <option value="1">WEP</option>
+                                            <option value="2">WPA-PSK</option>
+                                            <option value="3">WPA2-PSK</option>
+                                            <option value="4">WPA/2-PSK (recommended)</option>
+                                            <option value="4">WPA2 Enterprise</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div data-disable-if="input[type='checkbox'][name='w_sta_active']:not(:checked)" class="card mb-3">
+                        <div class="card-header">
+                            WiFi
+                            <div class="custom-control custom-switch d-inline float-right">
+                                <input type="checkbox" name="w_sta_active" value="1" class="custom-control-input" id="switch-wifi-sta">
+                                <label class="custom-control-label" for="switch-wifi-sta"></label>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-row mb-3">
+                                <div class="col-8">
+                                    <label>SSID</label>
+                                    <div class="input-group">
+                                        <input type="text" name="w_sta_ssid" class="form-control" maxlength="32" required>
+                                        <div class="input-group-append">
+                                            <button type="button" class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" data-toggle="dropdown"></button>
+                                            <div class="dropdown-menu">
+                                                <h6 class="dropdown-header">Open networks</h6>
+                                                <span class="open-networks">
+                                                    <a class="dropdown-item" href="javascript:void(0);">PUBLIC WIFI</a>
+                                                </span>
+                                                <h6 class="dropdown-header">Secured networks</h6>
+                                                <span class="secured-networks">
+                                                    <a class="dropdown-item" href="javascript:void(0);">Blok2</a>
+                                                    <a class="dropdown-item" href="javascript:void(0);">VM4D5B920</a>
+                                                    <a class="dropdown-item" href="javascript:void(0);">ESP_D99F9E</a>
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div class="input-group-append">
+                                            <button type="button" class="btn btn-outline-secondary">Scan</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <label>Password</label>
+                                    <div class="input-group">
+                                        <input type="password" name="w_sta_pass" class="form-control">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-xl-6">
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            UART (main communication)
+                        </div>
+                        <div class="card-body">
+                            <div class="form-row mb-3">
+                                <div class="col-8">
+                                    <label class="d-block">UART controller</label>
+                                    <div class="btn-group btn-group-toggle d-flex" data-toggle="buttons">
+                                        <label class="btn btn-outline-secondary active">
+                                            <input type="radio" name="uart_num" value="0" checked> UART&nbsp;0
+                                        </label>
+                                        <label class="btn btn-outline-secondary">
+                                            <input type="radio" name="uart_num" value="1"> UART&nbsp;1
+                                        </label>
+                                        <label class="btn btn-outline-secondary">
+                                            <input type="radio" name="uart_num" value="2"> UART&nbsp;2
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <label>TX pin</label>
+                                    <input type="number" name="uart_tx_pin" class="form-control" placeholder="1" value="1" required>
+                                </div>
+                                <div class="col">
+                                    <label>RX pin</label>
+                                    <input type="number" name="uart_rx_pin" class="form-control" placeholder="3" value="3" required>
+                                </div>
+                            </div>
+                            <div class="form-row mb-3">
+                                <div class="col-md-4 col-6">
+                                    <label>Baud rate</label>
+                                    <div class="input-group">
+                                        <select name="uart_baud_rate" class="custom-select" required>
+                                            <option value="9600">9600</option>
+                                            <option value="19200">19200</option>
+                                            <option value="38400">38400</option>
+                                            <option value="57600">57600</option>
+                                            <option value="115200" selected>115200</option>
+                                            <option value="230400">230400</option>
+                                            <option value="460800">460800</option>
+                                            <option value="921600">921600</option>
+                                        </select>
+                                        <div class="input-group-append">
+                                            <span class="input-group-text">baud</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md col-6">
+                                    <label>Data bits</label>
+                                    <div class="input-group">
+                                        <select name="uart_data_bits" class="custom-select" required>
+                                            <option value="0">5</option>
+                                            <option value="1">6</option>
+                                            <option value="2">7</option>
+                                            <option value="3" selected>8</option>
+                                        </select>
+                                        <div class="input-group-append">
+                                            <span class="input-group-text">bits</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md col-6">
+                                    <label>Stop bits</label>
+                                    <div class="input-group">
+                                        <select name="uart_stop_bits" class="custom-select" required>
+                                            <option value="1" selected>1</option>
+                                            <option value="2">1.5</option>
+                                            <option value="3">2</option>
+                                        </select>
+                                        <div class="input-group-append">
+                                            <span class="input-group-text">bits</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md col-6">
+                                    <label>Parity</label>
+                                    <select name="uart_parity" class="custom-select" required>
+                                        <option value="0" selected>Disabled</option>
+                                        <option value="2">Even</option>
+                                        <option value="3">Odd</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="col-8">
+                                    <label class="d-block">Flow control</label>
+                                    <div class="btn-group btn-group-toggle d-flex" data-toggle="buttons">
+                                        <label class="btn btn-outline-success">
+                                            <input type="checkbox" value="1" name="uart_fc_rts"> RTS
+                                        </label>
+                                        <label class="btn btn-outline-primary">
+                                            <input type="checkbox" value="1" name="uart_fc_cts"> CTS
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <label>RTS pin</label>
+                                    <input type="number" name="uart_rts_pin" data-disable-if="input[type='checkbox'][name='uart_fc_rts']:not(:checked)" class="form-control" placeholder="22" value="22" required>
+                                </div>
+                                <div class="col">
+                                    <label>CTS pin</label>
+                                    <input type="number" name="uart_cts_pin" data-disable-if="input[type='checkbox'][name='uart_fc_cts']:not(:checked)" class="form-control" placeholder="19" value="19" required>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div data-disable-if="input[type='checkbox'][name='bt_active']:not(:checked)" class="card mb-3">
+                        <div class="card-header">
+                            Bluetooth
+                            <div class="custom-control custom-switch d-inline float-right">
+                                <input type="checkbox" name="bt_active" value="1" class="custom-control-input" id="switch-wifi-bluetooth">
+                                <label class="custom-control-label" for="switch-wifi-bluetooth"></label>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-row mb-3">
+                                <div class="col-8">
+                                    <label>Device name</label>
+                                    <div class="input-group">
+                                        <input type="text" name="bt_dev_name" class="form-control" maxlength="32" required>
+                                        <div class="input-group-append btn-group-toggle" data-toggle="buttons">
+                                            <label class="btn btn-outline-secondary active">
+                                                <input type="checkbox" name="bt_dev_vis" value="1" checked> Discoverable
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <label>Pin code</label>
+                                    <div class="input-group">
+                                        <input type="number" name="bt_pin_code_1" class="form-control text-center" maxlength="1" min="0" max="9" pattern="[0-9]" oninput="autoTab(this)" required/>
+                                        <input type="number" name="bt_pin_code_2" class="form-control text-center" maxlength="1" min="0" max="9" pattern="[0-9]" oninput="autoTab(this)" required/>
+                                        <input type="number" name="bt_pin_code_3" class="form-control text-center" maxlength="1" min="0" max="9" pattern="[0-9]" oninput="autoTab(this)" required/>
+                                        <input type="number" name="bt_pin_code_4" class="form-control text-center" maxlength="1" min="0" max="9" pattern="[0-9]" oninput="autoTab(this)" required/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="row mb-5">
+                <div class="col">
+                    <input type="submit" class="form-control">
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-xl-6">
+                    <div data-disable-if="input[type='checkbox'][name='ntr_cli_active']:not(:checked)" class="card mb-3">
+                        <div class="card-header">
+                            NTRIP client
+                            <div class="custom-control d-inline float-right">
+                                <input type="color" name="ntr_cli_color" value="#ff0000" class="custom-control-input" id="color-ntrip-client">
+                                <label class="custom-control-label" for="color-ntrip-client">Color</label>
+                            </div>
+                            <div class="custom-control custom-switch d-inline float-right active">
+                                <input type="checkbox" name="ntr_cli_active" value="1" checked class="custom-control-input" id="switch-ntrip-client">
+                                <label class="custom-control-label" for="switch-ntrip-client"></label>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-row mb-3">
+                                <div class="col">
+                                    <label>Host and port</label>
+                                    <div class="input-group">
+                                        <input type="text" name="ntr_cli_host" class="form-control" style="flex-grow: 3">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text">:</span>
+                                        </div>
+                                        <input type="number" name="ntr_cli_port" maxlength="5" min="0" max="65535" class="form-control">
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <label>Mountpoint</label>
+                                    <div class="input-group">
+                                        <input type="text" name="ntr_cli_mp" class="form-control" maxlength="32" required>
+                                        <div class="input-group-append">
+                                            <button type="button" class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" data-toggle="dropdown"></button>
+                                            <div class="dropdown-menu">
+                                                <a class="dropdown-item" href="#">Action</a>
+                                                <a class="dropdown-item" href="#">Another action</a>
+                                                <a class="dropdown-item" href="#">Something else here</a>
+                                                <div role="separator" class="dropdown-divider"></div>
+                                                <a class="dropdown-item" href="#">Separated link</a>
+                                            </div>
+                                        </div>
+                                        <div class="input-group-append">
+                                            <button type="button" class="btn btn-outline-secondary">Search</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-row mb-3">
+                                <div class="col">
+                                    <label>Username</label>
+                                    <div class="input-group">
+                                        <input type="text" name="ntr_cli_user" class="form-control">
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <label>Password</label>
+                                    <div class="input-group">
+                                        <input type="password" name="ntr_cli_pass" class="form-control">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div data-disable-if="input[type='checkbox'][name='ntr_srv_active']:not(:checked)" class="card mb-3">
+                        <div class="card-header">
+                            NTRIP server
+                            <div class="custom-control custom-switch d-inline float-right active">
+                                <input type="checkbox" name="ntr_srv_active" value="1" checked class="custom-control-input" id="switch-ntrip-server">
+                                <label class="custom-control-label" for="switch-ntrip-server"></label>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-row mb-3">
+                                <div class="col">
+                                    <label>Host and port</label>
+                                    <div class="input-group">
+                                        <input type="text" name="ntr_srv_host" class="form-control" style="flex-grow: 3">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text">:</span>
+                                        </div>
+                                        <input type="number" name="ntr_srv_port" maxlength="5" min="0" max="65535" class="form-control">
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <label>Mountpoint</label>
+                                    <div class="input-group">
+                                        <input type="text" name="ntr_srv_mp" class="form-control" maxlength="32" required>
+                                        <div class="input-group-append">
+                                            <button type="button" class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" data-toggle="dropdown"></button>
+                                            <div class="dropdown-menu">
+                                                <a class="dropdown-item" href="#">Action</a>
+                                                <a class="dropdown-item" href="#">Another action</a>
+                                                <a class="dropdown-item" href="#">Something else here</a>
+                                                <div role="separator" class="dropdown-divider"></div>
+                                                <a class="dropdown-item" href="#">Separated link</a>
+                                            </div>
+                                        </div>
+                                        <div class="input-group-append">
+                                            <button type="button" class="btn btn-outline-secondary">Search</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-row mb-3">
+                                <div class="col">
+                                    <label>Username</label>
+                                    <div class="input-group">
+                                        <input type="text" name="ntr_srv_user" class="form-control">
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <label>Password</label>
+                                    <div class="input-group">
+                                        <input type="password" name="ntr_srv_pass" class="form-control">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div data-disable-if="input[type='checkbox'][name='ntr_cst_active']:not(:checked)" class="card mb-3">
+                        <div class="card-header">
+                            NTRIP caster
+                            <div class="custom-control custom-switch d-inline float-right active">
+                                <input type="checkbox" name="ntr_cst_active" value="1" checked class="custom-control-input" id="switch-ntrip-caster">
+                                <label class="custom-control-label" for="switch-ntrip-caster"></label>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-row mb-3">
+                                <div class="col">
+                                    <label>Port</label>
+                                    <div class="input-group">
+                                        <input type="number" name="ntr_cst_port" maxlength="5" min="0" max="65535" class="form-control">
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <label>Mountpoint</label>
+                                    <div class="input-group">
+                                        <input type="text" name="ntr_cst_mp" class="form-control" maxlength="32" required>
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <label>Username</label>
+                                    <div class="input-group">
+                                        <input type="text" name="ntr_cst_user" class="form-control">
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <label>Password</label>
+                                    <div class="input-group">
+                                        <input type="password" name="ntr_cst_pass" class="form-control">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-xl-6">
+                    <div data-disable-if="input[type='checkbox'][name='sck_srv_active']:not(:checked)" class="card mb-3">
+                        <div class="card-header">
+                            Sockets
+                            <div class="custom-control custom-switch d-inline float-right active">
+                                <input type="checkbox" name="sck_srv_active" value="1" checked class="custom-control-input" id="switch-socket-server">
+                                <label class="custom-control-label" for="switch-socket-server"></label>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-row mb-3">
+                                <div class="col">
+                                    <label>TCP Port</label>
+                                    <div class="input-group">
+                                        <input type="number" name="sck_srv_t_port" maxlength="5" min="0" max="65535" class="form-control">
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <label>UDP Port</label>
+                                    <div class="input-group">
+                                        <input type="number" name="sck_srv_u_port" maxlength="5" min="0" max="65535" class="form-control">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</body>
+</html>

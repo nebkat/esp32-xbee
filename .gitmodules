@@ -1,0 +1,3 @@
+[submodule "components/button"]
+	path = components/button
+	url = https://github.com/nebkat/esp32-button.git
