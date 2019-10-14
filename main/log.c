@@ -48,7 +48,7 @@ int log_vprintf(const char * format, va_list arg) {
         n = 512;
     }
 
-    uart_write(buffer, n);
+    uart_log(buffer, n);
 
     return n;
 }

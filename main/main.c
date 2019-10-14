@@ -63,6 +63,8 @@ void app_main()
 
     xTaskCreate(reset_button_task, "reset_button", 4096, NULL, TASK_PRIORITY_RESET_BUTTON, NULL);
 
+    config_init();
+
     log_init();
     esp_log_set_vprintf(log_vprintf);
     esp_log_level_set("gpio", ESP_LOG_WARN);
@@ -75,7 +77,6 @@ void app_main()
 
     esp_event_loop_create_default();
 
-    config_init();
     uart_init();
     tcpip_adapter_init();
 

@@ -46,8 +46,11 @@ void uart_register_handler(esp_event_handler_t event_handler) {
 }
 
 static int uart_port = -1;
+static bool uart_log_forward = false;
 
 void uart_init() {
+    uart_log_forward = config_get_bool1(CONF_ITEM(KEY_CONFIG_UART_LOG_FORWARD));
+
     uart_port = config_get_u8(CONF_ITEM(KEY_CONFIG_UART_NUM));
 
     uart_hw_flowcontrol_t flow_ctrl;
@@ -97,6 +100,11 @@ void uart_task(void *ctx) {
 
         esp_event_post(UART_EVENTS, 0, data, data->len + sizeof(data->len), portMAX_DELAY);
     }
+}
+
+int uart_log(char *buffer, size_t len) {
+    if (!uart_log_forward) return 0;
+    return uart_write(buffer, len);
 }
 
 int uart_write(char *buffer, size_t len) {

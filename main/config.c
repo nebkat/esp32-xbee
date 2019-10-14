@@ -191,6 +191,10 @@ const config_item_t CONFIG_ITEMS[] = {
                 .key = KEY_CONFIG_UART_FLOW_CTRL_CTS,
                 .type = CONFIG_ITEM_TYPE_BOOL,
                 .def.bool1 = false
+        }, {
+                .key = KEY_CONFIG_UART_LOG_FORWARD,
+                .type = CONFIG_ITEM_TYPE_BOOL,
+                .def.bool1 = false
         },
 
         // WiFi
