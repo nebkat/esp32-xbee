@@ -98,18 +98,20 @@ static void handle_sta_disconnected(void *arg, esp_event_base_t base, int32_t ev
         case WIFI_REASON_AUTH_FAIL:
         case WIFI_REASON_ASSOC_EXPIRE:
         case WIFI_REASON_HANDSHAKE_TIMEOUT:
-            reason = "auth";
+            reason = "AUTH";
             break;
         case WIFI_REASON_NO_AP_FOUND:
-            reason = "not_found";
+            reason = "NOT_FOUND";
             break;
         default:
-            reason = "unknown";
+            reason = "UNKNOWN";
+
             // Try to reconnect
             esp_wifi_connect();
     }
-    ESP_LOGI(TAG, "WIFI_EVENT_STA_DISCONNECTED: ssid: %.*s, reason: %d (%s)", event->ssid_len, event->ssid,
-            event->reason, reason);
+    ESP_LOGI(TAG, "WIFI_EVENT_STA_DISCONNECTED: ssid: %.*s, reason: %d (%s)", event->ssid_len, event->ssid, event->reason, reason);
+
+    uart_nmea("PESP,WIFI,STA,DISCONNECTED,%.*s,%d,%s", event->ssid_len, event->ssid, event->reason, reason);
 
     // No longer tracking signal strength
     gpio_set_level(RSSI_LED_GPIO_NUM, false);
@@ -117,8 +119,6 @@ static void handle_sta_disconnected(void *arg, esp_event_base_t base, int32_t ev
 
     xEventGroupClearBits(wifi_event_group, GOT_IPV4_BIT);
     xEventGroupClearBits(wifi_event_group, GOT_IPV6_BIT);
-
-    uart_nmea("PESP,WIFI,STA,DISCONNECTED,%.*s,%d,%s", event->ssid_len, event->ssid, event->reason, reason);
 
     if (status_led_sta != NULL) status_led_sta->flashing_mode = STATUS_LED_STATIC;
 }
@@ -268,8 +268,8 @@ void wifi_init() {
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_GOT_IP6, &handle_got_ip6, NULL));
 
     // Configure and connect
-    ESP_LOGI(TAG, "SoftAP SSID: %s", wifi_config_ap.ap.ssid);
-    ESP_LOGI(TAG, "Station SSID: %s", wifi_config_sta.sta.ssid);
+    ESP_LOGI(TAG, "SoftAP: %s (%s)", wifi_config_ap.ap.ssid, ap_password_len == 0 ? "open" : "with password");
+    ESP_LOGI(TAG, "Station: %s (%s)", wifi_config_sta.sta.ssid, sta_password_len == 0 ? "open" : "with password");
 
     wifi_mode_t wifi_mode;
     if (sta_enable && ap_enable) {
@@ -288,12 +288,12 @@ void wifi_init() {
     ESP_ERROR_CHECK(esp_wifi_start());
 
     if (ap_enable) {
-        uart_nmea("PESP,WIFI,AP,SSID,%s", wifi_config_ap.ap.ssid);
+        uart_nmea("PESP,WIFI,AP,SSID,%s,%s", wifi_config_ap.ap.ssid, ap_password_len == 0 ? "OPEN" : "PASSWORD");
         config_color_t ap_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_WIFI_AP_COLOR));
         if (ap_led_color.rgba != 0) status_led_ap = status_led_add(ap_led_color.rgba, STATUS_LED_STATIC, 250, 2500, 0);
     }
     if (sta_enable) {
-        uart_nmea("PESP,WIFI,STA,SSID,%s", wifi_config_sta.sta.ssid);
+        uart_nmea("PESP,WIFI,STA,SSID,%s,%s,%s", wifi_config_sta.sta.ssid, sta_password_len == 0 ? "OPEN" : "PASSWORD");
         config_color_t sta_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_WIFI_STA_COLOR));
         if (sta_led_color.rgba != 0) status_led_sta = status_led_add(sta_led_color.rgba, STATUS_LED_STATIC, 250, 2500, 0);
     }
