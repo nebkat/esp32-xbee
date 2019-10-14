@@ -135,7 +135,7 @@ const config_item_t CONFIG_ITEMS[] = {
         {
                 .key = KEY_CONFIG_SOCKET_SERVER_ACTIVE,
                 .type = CONFIG_ITEM_TYPE_BOOL,
-                .def.bool1 = true
+                .def.bool1 = false
         }, {
                 .key = KEY_CONFIG_SOCKET_SERVER_TCP_PORT,
                 .type = CONFIG_ITEM_TYPE_UINT16,
