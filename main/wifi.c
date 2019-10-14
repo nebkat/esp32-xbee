@@ -89,8 +89,7 @@ static void handle_sta_connected(void *arg, esp_event_base_t base, int32_t event
 	uart_write(nmea, strlen(nmea));
 	free(nmea);
 
-	//status_led_sta->interval = 500;
-	status_led_sta->flashing_mode = STATUS_LED_FADE;
+	if (status_led_sta != NULL) status_led_sta->flashing_mode = STATUS_LED_FADE;
 }
 
 static void handle_sta_disconnected(void *arg, esp_event_base_t base, int32_t event_id, void *event_data) {
@@ -127,8 +126,7 @@ static void handle_sta_disconnected(void *arg, esp_event_base_t base, int32_t ev
 	uart_write(nmea, strlen(nmea));
 	free(nmea);
 
-	//status_led_sta->interval = 250;
-	status_led_sta->flashing_mode = STATUS_LED_STATIC;
+	if (status_led_sta != NULL) status_led_sta->flashing_mode = STATUS_LED_STATIC;
 }
 
 static void handle_sta_auth_mode_change(void *arg, esp_event_base_t base, int32_t event_id, void *event_data) {
@@ -162,8 +160,7 @@ static void handle_ap_sta_connected(void *arg, esp_event_base_t base, int32_t ev
 	uart_write(nmea, strlen(nmea));
 	free(nmea);
 
-	//status_led_ap->interval = 500;
-	status_led_ap->flashing_mode = STATUS_LED_FADE;
+	if (status_led_ap != NULL) status_led_ap->flashing_mode = STATUS_LED_FADE;
 }
 
 static void handle_ap_sta_disconnected(void *arg, esp_event_base_t base, int32_t event_id, void *event_data) {
@@ -179,8 +176,7 @@ static void handle_ap_sta_disconnected(void *arg, esp_event_base_t base, int32_t
 	wifi_sta_list_t ap_sta_list;
 	esp_wifi_ap_get_sta_list(&ap_sta_list);
 
-	//status_led_ap->interval = ap_sta_list.num > 0 ? 500 : 250;
-	status_led_ap->flashing_mode = ap_sta_list.num > 0 ? STATUS_LED_FADE : STATUS_LED_STATIC;
+	if (status_led_ap != NULL) status_led_ap->flashing_mode = ap_sta_list.num > 0 ? STATUS_LED_FADE : STATUS_LED_STATIC;
 }
 
 static void handle_sta_got_ip(void *arg, esp_event_base_t base, int32_t event_id, void *event_data) {
@@ -325,8 +321,12 @@ void wifi_init() {
 	free(nmea);
 
 	if (ap_enable) {
-		status_led_ap = status_led_add(0x8800ff55, STATUS_LED_STATIC, 500, 5000, 0);
-		status_led_sta = status_led_add(0x0044ff55, STATUS_LED_STATIC, 500, 5000, 0);
+		config_color_t ap_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_WIFI_AP_COLOR));
+		if (ap_led_color.rgba != 0) status_led_ap = status_led_add(ap_led_color.rgba, STATUS_LED_STATIC, 500, 5000, 0);
+	}
+	if (sta_enable) {
+		config_color_t sta_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_WIFI_STA_COLOR));
+		if (sta_led_color.rgba != 0) status_led_sta = status_led_add(sta_led_color.rgba, STATUS_LED_STATIC, 500, 5000, 0);
 	}
 }
 

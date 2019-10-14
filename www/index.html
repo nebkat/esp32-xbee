@@ -16,6 +16,13 @@
             -moz-appearance:textfield; /* Firefox */
         }
 
+        input[type=color] {
+            -webkit-appearance: none;
+            border: none;
+            width: 20px;
+            border-radius: 5px;
+        }
+
         .card .card-body {
             transition: all ease-in-out 0.25s;
         }
@@ -192,6 +199,9 @@
                                 <input type="checkbox" name="w_ap_active" value="1" checked class="custom-control-input" id="switch-wifi-ap">
                                 <label class="custom-control-label" for="switch-wifi-ap"></label>
                             </div>
+                            <div class="d-inline mr-1 float-right">
+                                <input type="color" name="w_ap_color" value="#ffffff" id="color-wifi-ap">
+                            </div>
                         </div>
                         <div class="card-body">
                             <div class="form-row mb-3">
@@ -229,6 +239,9 @@
                             <div class="custom-control custom-switch d-inline float-right">
                                 <input type="checkbox" name="w_sta_active" value="1" class="custom-control-input" id="switch-wifi-sta">
                                 <label class="custom-control-label" for="switch-wifi-sta"></label>
+                            </div>
+                            <div class="d-inline mr-1 float-right">
+                                <input type="color" name="w_sta_color" value="#ffffff" id="color-wifi-sta">
                             </div>
                         </div>
                         <div class="card-body">
@@ -420,10 +433,6 @@
                     <div data-disable-if="input[type='checkbox'][name='ntr_cli_active']:not(:checked)" class="card mb-3">
                         <div class="card-header">
                             NTRIP client
-                            <div class="custom-control d-inline float-right">
-                                <input type="color" name="ntr_cli_color" value="#ff0000" class="custom-control-input" id="color-ntrip-client">
-                                <label class="custom-control-label" for="color-ntrip-client">Color</label>
-                            </div>
                             <div class="custom-control custom-switch d-inline float-right active">
                                 <input type="checkbox" name="ntr_cli_active" value="1" checked class="custom-control-input" id="switch-ntrip-client">
                                 <label class="custom-control-label" for="switch-ntrip-client"></label>

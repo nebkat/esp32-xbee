@@ -13,8 +13,19 @@ typedef enum {
     CONFIG_ITEM_TYPE_UINT64,
     CONFIG_ITEM_TYPE_STRING,
     CONFIG_ITEM_TYPE_BLOB,
+    CONFIG_ITEM_TYPE_COLOR,
     CONFIG_ITEM_TYPE_MAX
 } config_item_type_t;
+
+typedef union {
+    struct values {
+        uint8_t alpha;
+        uint8_t blue;
+        uint8_t green;
+        uint8_t red;
+    } values;
+    uint32_t rgba;
+} config_color_t;
 
 typedef union {
     bool bool1;
@@ -26,11 +37,13 @@ typedef union {
     uint16_t uint16;
     uint32_t uint32;
     uint64_t uint64;
+    config_color_t color;
     char *str;
     struct blob {
         uint8_t *data;
         size_t length;
     } blob;
+
 } config_item_value_t;
 
 typedef struct config_item {
@@ -87,12 +100,14 @@ typedef struct config_item {
 
 // WiFi
 #define KEY_CONFIG_WIFI_AP_ACTIVE "w_ap_active"
+#define KEY_CONFIG_WIFI_AP_COLOR "w_ap_color"
 #define KEY_CONFIG_WIFI_AP_SSID "w_ap_ssid"
 #define KEY_CONFIG_WIFI_AP_SSID_HIDDEN "w_ap_ssid_hid"
 #define KEY_CONFIG_WIFI_AP_AUTH_MODE "w_ap_auth_mode"
 #define KEY_CONFIG_WIFI_AP_PASSWORD "w_ap_pass"
 
 #define KEY_CONFIG_WIFI_STA_ACTIVE "w_sta_active"
+#define KEY_CONFIG_WIFI_STA_COLOR "w_sta_color"
 #define KEY_CONFIG_WIFI_STA_SSID "w_sta_ssid"
 #define KEY_CONFIG_WIFI_STA_PASSWORD "w_sta_pass"
 
@@ -113,6 +128,7 @@ uint8_t config_get_u8(const config_item_t *item);
 uint16_t config_get_u16(const config_item_t *item);
 uint32_t config_get_u32(const config_item_t *item);
 uint64_t config_get_u64(const config_item_t *item);
+config_color_t config_get_color(const config_item_t *item);
 
 esp_err_t config_get_str(const char* key, char *out_value, size_t *len, const char *default_value);
 esp_err_t config_get_blob(const char* key, char *out_value, size_t *len, const char *default_value);
@@ -127,6 +143,7 @@ esp_err_t config_set_u8(const char *key, uint8_t value);
 esp_err_t config_set_u16(const char *key, uint16_t value);
 esp_err_t config_set_u32(const char *key, uint32_t value);
 esp_err_t config_set_u64(const char *key, uint64_t value);
+esp_err_t config_set_color(const char *key, config_color_t value);
 esp_err_t config_set_str(const char *key, char *value);
 esp_err_t config_set_blob(const char *key, char *value, size_t length);
 

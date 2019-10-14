@@ -199,6 +199,10 @@ const config_item_t CONFIG_ITEMS[] = {
                 .type = CONFIG_ITEM_TYPE_BOOL,
                 .def.bool1 = true
         }, {
+                .key = KEY_CONFIG_WIFI_AP_COLOR,
+                .type = CONFIG_ITEM_TYPE_COLOR,
+                .def.color.rgba = 0x00000000
+        }, {
                 .key = KEY_CONFIG_WIFI_AP_SSID,
                 .type = CONFIG_ITEM_TYPE_STRING,
                 .def.str = ""
@@ -219,6 +223,10 @@ const config_item_t CONFIG_ITEMS[] = {
                 .key = KEY_CONFIG_WIFI_STA_ACTIVE,
                 .type = CONFIG_ITEM_TYPE_BOOL,
                 .def.bool1 = true
+        }, {
+                .key = KEY_CONFIG_WIFI_STA_COLOR,
+                .type = CONFIG_ITEM_TYPE_COLOR,
+                .def.color.rgba = 0x0044ff55u
         }, {
                 .key = KEY_CONFIG_WIFI_STA_SSID,
                 .type = CONFIG_ITEM_TYPE_STRING,
@@ -294,6 +302,10 @@ esp_err_t config_set_u32(const char *key, uint32_t value) {
 
 esp_err_t config_set_u64(const char *key, uint64_t value) {
     return nvs_set_u64(config_handle, key, value);
+}
+
+esp_err_t config_set_color(const char *key, config_color_t value) {
+    return nvs_set_u32(config_handle, key, value.rgba);
 }
 
 esp_err_t config_set_bool1(const char *key, bool value) {
@@ -379,6 +391,12 @@ uint64_t config_get_u64(const config_item_t *item) {
     return value;
 }
 
+config_color_t config_get_color(const config_item_t *item) {
+    config_color_t value = item->def.color;
+    nvs_get_u32(config_handle, item->key, &value.rgba);
+    return value;
+}
+
 bool config_get_bool1(const config_item_t *item) {
     int8_t value = item->def.bool1;
     nvs_get_i8(config_handle, item->key, &value);
@@ -444,6 +462,10 @@ esp_err_t config_get_primitive(const config_item_t *item, void *out_value) {
         case CONFIG_ITEM_TYPE_UINT64:
             *((uint64_t *) out_value) = item->def.uint64;
             ret = nvs_get_u64(config_handle, item->key, out_value);
+            break;
+        case CONFIG_ITEM_TYPE_COLOR:
+            *((config_color_t *) out_value) = item->def.color;
+            ret = nvs_get_u32(config_handle, item->key, out_value);
             break;
         default:
             return ESP_ERR_INVALID_ARG;

@@ -222,6 +222,7 @@ static esp_err_t config_get_handler(httpd_req_t *req) {
         uint64_t uint64 = 0;
         size_t length = 0;
         char *string;
+        config_color_t color;
 
         if (item->secret) {
             string = calloc(1, 1);
@@ -233,6 +234,10 @@ static esp_err_t config_get_handler(httpd_req_t *req) {
                     string = calloc(1, length + 1);
                     ESP_ERROR_CHECK_WITHOUT_ABORT(config_get_str_blob(item, string, &length));
                     string[length] = '\0';
+                    break;
+                case CONFIG_ITEM_TYPE_COLOR:
+                    ESP_ERROR_CHECK_WITHOUT_ABORT(config_get_primitive(item, &color));
+                    asprintf(&string, "#%02x%02x%02x", color.values.red, color.values.green, color.values.blue);
                     break;
                 case CONFIG_ITEM_TYPE_UINT8:
                 case CONFIG_ITEM_TYPE_UINT16:
@@ -284,26 +289,38 @@ static esp_err_t config_post_handler(httpd_req_t *req) {
     int config_item_count;
     const config_item_t *config_items = config_items_get(&config_item_count);
     for (int i = 0; i < config_item_count; i++) {
-        char *key = config_items[i].key;
-        config_item_type_t type = config_items[i].type;
+        config_item_t item = config_items[i];
 
-        if (cJSON_HasObjectItem(root, key)) {
-            cJSON *entry = cJSON_GetObjectItem(root, key);
+        if (cJSON_HasObjectItem(root, item.key)) {
+            cJSON *entry = cJSON_GetObjectItem(root, item.key);
+
+            size_t length = strlen(entry->valuestring);
 
             // Ignore empty values
-            if (strlen(entry->valuestring) == 0) {
-                continue;
-            }
+            if (length == 0) continue;
 
             esp_err_t err;
-            if (type > CONFIG_ITEM_TYPE_MAX) {
+            if (item.type > CONFIG_ITEM_TYPE_MAX) {
                 err = ESP_ERR_INVALID_ARG;
-            } else if (type == CONFIG_ITEM_TYPE_STRING) {
-                err = config_set_str(key, entry->valuestring);
-            } else if (type == CONFIG_ITEM_TYPE_BLOB) {
-                err = config_set_blob(key, entry->valuestring, strlen(entry->valuestring));
-            } else if (type == CONFIG_ITEM_TYPE_BOOL) {
-                err = config_set_boola(key,strcmp(entry->valuestring, "1") == 0);
+            } else if (item.type == CONFIG_ITEM_TYPE_STRING) {
+                err = config_set_str(item.key, entry->valuestring);
+            } else if (item.type == CONFIG_ITEM_TYPE_BLOB) {
+                err = config_set_blob(item.key, entry->valuestring, strlen(entry->valuestring));
+            } else if (item.type == CONFIG_ITEM_TYPE_COLOR) {
+                bool is_black = strcmp(entry->valuestring, "#000000") == 0;
+                config_color_t color;
+                color.rgba = strtoul(entry->valuestring + 1, NULL, 16) << 8u;
+
+                if (!is_black && color.rgba == 0) {
+                    err = ESP_ERR_INVALID_ARG;
+                } else {
+                    // Set alpha to default
+                    if (!is_black) color.values.alpha = item.def.color.values.alpha;
+
+                    err = config_set_color(item.key, color);
+                }
+            } else if (item.type == CONFIG_ITEM_TYPE_BOOL) {
+                err = config_set_bool1(item.key, strcmp(entry->valuestring, "1") == 0);
             } else {
                 bool is_zero = strcmp(entry->valuestring, "0") == 0 || strcmp(entry->valuestring, "0.0") == 0;
                 int64_t int64 = strtol(entry->valuestring, NULL, 10);
@@ -312,30 +329,18 @@ static esp_err_t config_post_handler(httpd_req_t *req) {
                 if (!is_zero && (int64 == 0 || uint64 == 0)) {
                     err = ESP_ERR_INVALID_ARG;
                 } else {
-                    switch (type) {
+                    switch (item.type) {
                         case CONFIG_ITEM_TYPE_INT8:
-                            err = config_set_i8(key, int64);
-                            break;
                         case CONFIG_ITEM_TYPE_INT16:
-                            err = config_set_i16(key, int64);
-                            break;
                         case CONFIG_ITEM_TYPE_INT32:
-                            err = config_set_i32(key, int64);
-                            break;
                         case CONFIG_ITEM_TYPE_INT64:
-                            err = config_set_i64(key, int64);
+                            err = config_set(&item, &int64);
                             break;
                         case CONFIG_ITEM_TYPE_UINT8:
-                            err = config_set_u8(key, uint64);
-                            break;
                         case CONFIG_ITEM_TYPE_UINT16:
-                            err = config_set_u16(key, uint64);
-                            break;
                         case CONFIG_ITEM_TYPE_UINT32:
-                            err = config_set_u32(key, uint64);
-                            break;
                         case CONFIG_ITEM_TYPE_UINT64:
-                            err = config_set_u64(key, uint64);
+                            err = config_set(&item, &uint64);
                             break;
                         default:
                             err = ESP_FAIL;
