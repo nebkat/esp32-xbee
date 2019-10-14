@@ -444,16 +444,6 @@ static httpd_handle_t web_server_start(void)
     return server;
 }
 
-static void web_server_stop(httpd_handle_t server)
-{
-    if (server) {
-        free(buffer);
-
-        // Stop the httpd server
-        httpd_stop(server);
-    }
-}
-
 void web_server_init() {
     www_spiffs_init();
     web_server_start();
