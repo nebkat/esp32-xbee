@@ -23,6 +23,8 @@
 #include <driver/uart.h>
 #include <esp_wifi_types.h>
 #include <driver/gpio.h>
+#include <nmea.h>
+#include <uart.h>
 #include "config.h"
 
 static const char *TAG = "CONFIG";
@@ -321,6 +323,11 @@ esp_err_t config_init() {
 }
 
 esp_err_t config_reset() {
+    char *nmea;
+    nmea_asprintf(&nmea, "PESP,CFG,RESET");
+    uart_write(nmea, strlen(nmea));
+    free(nmea);
+
     return nvs_erase_all(config_handle);
 }
 
@@ -471,6 +478,11 @@ esp_err_t config_get_str_blob(const config_item_t *item, void *out_value, size_t
 }
 
 esp_err_t config_commit() {
+    char *nmea;
+    nmea_asprintf(&nmea, "PESP,CFG,UPDATED");
+    uart_write(nmea, strlen(nmea));
+    free(nmea);
+
     return nvs_commit(config_handle);
 }
 
