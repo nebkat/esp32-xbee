@@ -420,6 +420,9 @@ const config_item_t * config_get_item(const char *key) {
         }
     }
 
+    // Fatal error
+    ESP_ERROR_CHECK(ESP_FAIL);
+
     return NULL;
 }
 
