@@ -484,6 +484,9 @@ esp_err_t config_get_str_blob(const config_item_t *item, void *out_value, size_t
             if (ret == ESP_ERR_NVS_NOT_FOUND) {
                 if (length != NULL) *length = strlen(item->def.str);
                 if (out_value != NULL) strcpy(out_value, item->def.str);
+            } else {
+                // nvs_get_str returns length including null terminator
+                (*length)--;
             }
             break;
         case CONFIG_ITEM_TYPE_BLOB:
