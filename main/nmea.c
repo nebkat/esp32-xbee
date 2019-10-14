@@ -37,13 +37,19 @@ int nmea_asprintf(char **strp, const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
 
+    int l = nmea_vasprintf(strp, fmt, args);
+
+    va_end(args);
+
+    return l;
+}
+
+int nmea_vasprintf(char **strp, const char *fmt, va_list args) {
     char *sentence;
     vasprintf(&sentence, fmt, args);
     uint8_t checksum = nmea_calculate_checksum(sentence);
     int l = asprintf(strp, "$%s*%02X\r\n", sentence, checksum);
     free(sentence);
-
-    va_end(args);
 
     return l;
 }

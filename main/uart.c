@@ -20,6 +20,7 @@
 #include <esp_event.h>
 #include <esp_log.h>
 #include <string.h>
+#include <nmea.h>
 
 #include "bluetooth.h"
 #include "uart.h"
@@ -96,8 +97,6 @@ void uart_task(void *ctx) {
             continue;
         }
 
-        //ESP_LOGI(TAG, "Read: %.*s", data->len, data->buffer);
-
         esp_event_post(UART_EVENTS, 0, data, data->len + sizeof(data->len), portMAX_DELAY);
     }
 }
@@ -105,6 +104,20 @@ void uart_task(void *ctx) {
 int uart_log(char *buffer, size_t len) {
     if (!uart_log_forward) return 0;
     return uart_write(buffer, len);
+}
+
+int uart_nmea(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+
+    char *nmea;
+    nmea_vasprintf(&nmea, fmt, args);
+    int l = uart_write(nmea, strlen(nmea));
+    free(nmea);
+
+    va_end(args);
+
+    return l;
 }
 
 int uart_write(char *buffer, size_t len) {

@@ -64,6 +64,7 @@ void app_main()
     xTaskCreate(reset_button_task, "reset_button", 4096, NULL, TASK_PRIORITY_RESET_BUTTON, NULL);
 
     config_init();
+    uart_init();
 
     log_init();
     esp_log_set_vprintf(log_vprintf);
@@ -71,26 +72,25 @@ void app_main()
     esp_log_level_set("system_api", ESP_LOG_WARN);
     esp_log_level_set("wifi", ESP_LOG_WARN);
 
+    uart_nmea("PESP,INIT,START");
+
     ESP_LOGI(TAG, "Starting ESP32 XBee UART Interface");
     ESP_LOGI(TAG, "Author: Nebojša Cvetković");
     ESP_LOGI(TAG, "Source: https://github.com/nebkat/esp32-ntrip-server");
 
     esp_event_loop_create_default();
 
-    uart_init();
     tcpip_adapter_init();
 
     wifi_init();
-    //bluetooth_init();
 
     web_server_init();
 
     ntrip_caster_init();
     ntrip_server_init();
-
-    vTaskDelay(10000 / portTICK_PERIOD_MS);
-
     ntrip_client_init();
 
     socket_server_init();
+
+    uart_nmea("PESP,INIT,COMPLETE");
 }

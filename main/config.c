@@ -19,11 +19,9 @@
 #include <nvs_flash.h>
 #include <esp_log.h>
 #include <string.h>
-#include <esp_local_ctrl.h>
 #include <driver/uart.h>
 #include <esp_wifi_types.h>
 #include <driver/gpio.h>
-#include <nmea.h>
 #include <uart.h>
 #include "config.h"
 
@@ -338,10 +336,7 @@ esp_err_t config_init() {
 }
 
 esp_err_t config_reset() {
-    char *nmea;
-    nmea_asprintf(&nmea, "PESP,CFG,RESET");
-    uart_write(nmea, strlen(nmea));
-    free(nmea);
+    uart_nmea("PESP,CFG,RESET");
 
     return nvs_erase_all(config_handle);
 }
@@ -506,10 +501,7 @@ esp_err_t config_get_str_blob(const config_item_t *item, void *out_value, size_t
 }
 
 esp_err_t config_commit() {
-    char *nmea;
-    nmea_asprintf(&nmea, "PESP,CFG,UPDATED");
-    uart_write(nmea, strlen(nmea));
-    free(nmea);
+    uart_nmea("PESP,CFG,UPDATED");
 
     return nvs_commit(config_handle);
 }
