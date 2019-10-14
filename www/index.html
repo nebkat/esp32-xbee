@@ -247,7 +247,7 @@
                                 <label class="custom-control-label" for="switch-wifi-ap"></label>
                             </div>
                             <div class="d-inline mr-1 float-right">
-                                <input type="color" name="w_ap_color" value="#ffffff" id="color-wifi-ap">
+                                <input type="color" name="w_ap_color" data-disable-if="input[type='checkbox'][name='w_ap_active']:not(:checked)" value="#ffffff" id="color-wifi-ap">
                             </div>
                         </div>
                         <div class="card-body">
@@ -288,7 +288,7 @@
                                 <label class="custom-control-label" for="switch-wifi-sta"></label>
                             </div>
                             <div class="d-inline mr-1 float-right">
-                                <input type="color" name="w_sta_color" value="#ffffff" id="color-wifi-sta">
+                                <input type="color" name="w_sta_color" data-disable-if="input[type='checkbox'][name='w_ap_active']:not(:checked)" value="#ffffff" id="color-wifi-sta">
                             </div>
                         </div>
                         <div class="card-body">
