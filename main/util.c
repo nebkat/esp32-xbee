@@ -32,19 +32,6 @@ void destroy_socket(int *socket) {
     *socket = -1;
 }
 
-esp_err_t resolve_socket_host(struct sockaddr_in *addr, char *host, int16_t port) {
-    struct addrinfo *result;
-
-    esp_err_t ret = getaddrinfo(host, NULL, NULL, &result);
-    if (ret != ESP_OK) {
-        return ret;
-    }
-
-
-
-    return ESP_OK;
-}
-
 int connect_socket(char *host, int port, int socktype) {
     struct addrinfo addr_hints;
     struct addrinfo *addr_results;
