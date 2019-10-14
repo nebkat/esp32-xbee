@@ -287,16 +287,15 @@ void wifi_init() {
 	if (sta_enable) ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config_sta));
 	ESP_ERROR_CHECK(esp_wifi_start());
 
-    uart_nmea("PESP,WIFI,AP,SSID,%s", wifi_config_ap.ap.ssid);
-    uart_nmea("PESP,WIFI,STA,SSID,%s", wifi_config_sta.sta.ssid);
-
 	if (ap_enable) {
+        uart_nmea("PESP,WIFI,AP,SSID,%s", wifi_config_ap.ap.ssid);
 		config_color_t ap_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_WIFI_AP_COLOR));
-		if (ap_led_color.rgba != 0) status_led_ap = status_led_add(ap_led_color.rgba, STATUS_LED_STATIC, 500, 5000, 0);
+		if (ap_led_color.rgba != 0) status_led_ap = status_led_add(ap_led_color.rgba, STATUS_LED_STATIC, 250, 2500, 0);
 	}
 	if (sta_enable) {
+        uart_nmea("PESP,WIFI,STA,SSID,%s", wifi_config_sta.sta.ssid);
 		config_color_t sta_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_WIFI_STA_COLOR));
-		if (sta_led_color.rgba != 0) status_led_sta = status_led_add(sta_led_color.rgba, STATUS_LED_STATIC, 500, 5000, 0);
+		if (sta_led_color.rgba != 0) status_led_sta = status_led_add(sta_led_color.rgba, STATUS_LED_STATIC, 250, 2500, 0);
 	}
 }
 
