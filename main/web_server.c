@@ -17,8 +17,6 @@
 
 #include <esp_http_server.h>
 #include <esp_log.h>
-#include <esp_event_base.h>
-#include <esp_wifi.h>
 #include <wifi.h>
 #include <cJSON.h>
 #include <sys/param.h>
@@ -224,43 +222,41 @@ static esp_err_t config_get_handler(httpd_req_t *req) {
         char *string;
         config_color_t color;
 
-        if (item->secret) {
-            string = calloc(1, 1);
-        } else {
-            switch (item->type) {
-                case CONFIG_ITEM_TYPE_STRING:
-                case CONFIG_ITEM_TYPE_BLOB:
-                    ESP_ERROR_CHECK_WITHOUT_ABORT(config_get_str_blob(item, NULL, &length));
-                    string = calloc(1, length + 1);
-                    ESP_ERROR_CHECK_WITHOUT_ABORT(config_get_str_blob(item, string, &length));
-                    string[length] = '\0';
-                    break;
-                case CONFIG_ITEM_TYPE_COLOR:
-                    ESP_ERROR_CHECK_WITHOUT_ABORT(config_get_primitive(item, &color));
-                    asprintf(&string, "#%02x%02x%02x", color.values.red, color.values.green, color.values.blue);
-                    break;
-                case CONFIG_ITEM_TYPE_UINT8:
-                case CONFIG_ITEM_TYPE_UINT16:
-                case CONFIG_ITEM_TYPE_UINT32:
-                case CONFIG_ITEM_TYPE_UINT64:
-                    ESP_ERROR_CHECK_WITHOUT_ABORT(config_get_primitive(item, &uint64));
-                    asprintf(&string, "%llu", uint64);
-                    break;
-                case CONFIG_ITEM_TYPE_BOOL:
-                case CONFIG_ITEM_TYPE_INT8:
-                case CONFIG_ITEM_TYPE_INT16:
-                case CONFIG_ITEM_TYPE_INT32:
-                case CONFIG_ITEM_TYPE_INT64:
-                    ESP_ERROR_CHECK_WITHOUT_ABORT(config_get_primitive(item, &int64));
-                    asprintf(&string, "%lld", int64);
-                    break;
-                default:
-                    string = calloc(1, 1);
-                    break;
-            }
+        switch (item->type) {
+            case CONFIG_ITEM_TYPE_STRING:
+            case CONFIG_ITEM_TYPE_BLOB:
+                ESP_ERROR_CHECK_WITHOUT_ABORT(config_get_str_blob(item, NULL, &length));
+                string = calloc(1, length + 1);
+                ESP_ERROR_CHECK_WITHOUT_ABORT(config_get_str_blob(item, string, &length));
+                string[length] = '\0';
+                break;
+            case CONFIG_ITEM_TYPE_COLOR:
+                ESP_ERROR_CHECK_WITHOUT_ABORT(config_get_primitive(item, &color));
+                asprintf(&string, "#%02x%02x%02x", color.values.red, color.values.green, color.values.blue);
+                break;
+            case CONFIG_ITEM_TYPE_UINT8:
+            case CONFIG_ITEM_TYPE_UINT16:
+            case CONFIG_ITEM_TYPE_UINT32:
+            case CONFIG_ITEM_TYPE_UINT64:
+                ESP_ERROR_CHECK_WITHOUT_ABORT(config_get_primitive(item, &uint64));
+                asprintf(&string, "%llu", uint64);
+                break;
+            case CONFIG_ITEM_TYPE_BOOL:
+            case CONFIG_ITEM_TYPE_INT8:
+            case CONFIG_ITEM_TYPE_INT16:
+            case CONFIG_ITEM_TYPE_INT32:
+            case CONFIG_ITEM_TYPE_INT64:
+                ESP_ERROR_CHECK_WITHOUT_ABORT(config_get_primitive(item, &int64));
+                asprintf(&string, "%lld", int64);
+                break;
+            default:
+                string = calloc(1, 1);
+                break;
         }
 
-        cJSON_AddStringToObject(root, item->key, string);
+        // Hide secret values that aren't empty
+        char *value = item->secret && strlen(string) > 0 ? CONFIG_VALUE_UNCHANGED : string;
+        cJSON_AddStringToObject(root, item->key, value);
 
         free(string);
     }
@@ -296,8 +292,11 @@ static esp_err_t config_post_handler(httpd_req_t *req) {
 
             size_t length = strlen(entry->valuestring);
 
-            // Ignore empty values
-            if (length == 0) continue;
+            // Ignore empty primitives
+            if (length == 0 && item.type != CONFIG_ITEM_TYPE_BLOB && item.type != CONFIG_ITEM_TYPE_STRING) continue;
+
+            // Ignore unchanged values
+            if (strcmp(entry->valuestring, CONFIG_VALUE_UNCHANGED) == 0) continue;
 
             esp_err_t err;
             if (item.type > CONFIG_ITEM_TYPE_MAX) {
@@ -305,7 +304,7 @@ static esp_err_t config_post_handler(httpd_req_t *req) {
             } else if (item.type == CONFIG_ITEM_TYPE_STRING) {
                 err = config_set_str(item.key, entry->valuestring);
             } else if (item.type == CONFIG_ITEM_TYPE_BLOB) {
-                err = config_set_blob(item.key, entry->valuestring, strlen(entry->valuestring));
+                err = config_set_blob(item.key, entry->valuestring, length);
             } else if (item.type == CONFIG_ITEM_TYPE_COLOR) {
                 bool is_black = strcmp(entry->valuestring, "#000000") == 0;
                 config_color_t color;
@@ -319,8 +318,6 @@ static esp_err_t config_post_handler(httpd_req_t *req) {
 
                     err = config_set_color(item.key, color);
                 }
-            } else if (item.type == CONFIG_ITEM_TYPE_BOOL) {
-                err = config_set_bool1(item.key, strcmp(entry->valuestring, "1") == 0);
             } else {
                 bool is_zero = strcmp(entry->valuestring, "0") == 0 || strcmp(entry->valuestring, "0.0") == 0;
                 int64_t int64 = strtol(entry->valuestring, NULL, 10);
@@ -330,6 +327,7 @@ static esp_err_t config_post_handler(httpd_req_t *req) {
                     err = ESP_ERR_INVALID_ARG;
                 } else {
                     switch (item.type) {
+                        case CONFIG_ITEM_TYPE_BOOL:
                         case CONFIG_ITEM_TYPE_INT8:
                         case CONFIG_ITEM_TYPE_INT16:
                         case CONFIG_ITEM_TYPE_INT32:

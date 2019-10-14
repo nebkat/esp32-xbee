@@ -53,6 +53,8 @@ typedef struct config_item {
     config_item_value_t def;
 } config_item_t;
 
+#define CONFIG_VALUE_UNCHANGED "\x1a\x1a\x1a\x1a\x1a\x1a\x1a\x1a"
+
 // Bluetooth
 #define KEY_CONFIG_BLUETOOTH_ACTIVE "bt_active"
 #define KEY_CONFIG_BLUETOOTH_DEVICE_NAME "bt_dev_name"
