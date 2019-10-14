@@ -242,6 +242,7 @@ void wifi_init() {
     config_get_primitive(CONF_ITEM(KEY_CONFIG_WIFI_AP_SSID_HIDDEN), &wifi_config_ap.ap.ssid_hidden);
     size_t ap_password_len = sizeof(wifi_config_ap.ap.password);
     config_get_str_blob(CONF_ITEM(KEY_CONFIG_WIFI_AP_PASSWORD), &wifi_config_ap.ap.password, &ap_password_len);
+    ap_password_len--; // Remove null terminator from length
     config_get_primitive(CONF_ITEM(KEY_CONFIG_WIFI_AP_AUTH_MODE), &wifi_config_ap.ap.authmode);
 
     // STA
@@ -251,6 +252,7 @@ void wifi_init() {
     config_get_str_blob(CONF_ITEM(KEY_CONFIG_WIFI_STA_SSID), &wifi_config_sta.sta.ssid, &sta_ssid_len);
     size_t sta_password_len = sizeof(wifi_config_sta.sta.password);
     config_get_str_blob(CONF_ITEM(KEY_CONFIG_WIFI_STA_PASSWORD), &wifi_config_sta.sta.password, &sta_password_len);
+    sta_password_len--; // Remove null terminator from length
 
     // Listen for WiFi and IP events
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_START, &handle_sta_start, NULL));

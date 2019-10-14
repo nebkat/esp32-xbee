@@ -225,12 +225,16 @@ static esp_err_t config_get_handler(httpd_req_t *req) {
         switch (item->type) {
             case CONFIG_ITEM_TYPE_STRING:
             case CONFIG_ITEM_TYPE_BLOB:
+                // Get length
                 ESP_ERROR_CHECK_WITHOUT_ABORT(config_get_str_blob(item, NULL, &length));
                 string = calloc(1, length + 1);
+
+                // Get value
                 ESP_ERROR_CHECK_WITHOUT_ABORT(config_get_str_blob(item, string, &length));
                 string[length] = '\0';
                 break;
             case CONFIG_ITEM_TYPE_COLOR:
+                // Convert to hex
                 ESP_ERROR_CHECK_WITHOUT_ABORT(config_get_primitive(item, &color));
                 asprintf(&string, "#%02x%02x%02x", color.values.red, color.values.green, color.values.blue);
                 break;
