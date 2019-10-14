@@ -15,3 +15,7 @@ idf_component_register(SRCS "main.c"
         INCLUDE_DIRS "include")
 
 spiffs_create_partition_image(www ../www FLASH_IN_PROJECT)
+
+# Load project version
+idf_build_get_property(project_ver PROJECT_VER)
+add_compile_definitions(PROJECT_VER="${PROJECT_VER}")
