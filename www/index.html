@@ -59,10 +59,9 @@
             form.on('submit', function(e) {
                 e.preventDefault();
 
-                console.log($(this).serializeObject());
 
                 $.post('config', JSON.stringify($(this).serializeObject()), function() {
-                    console.log("Done");
+
                 });
             });
 
@@ -92,15 +91,13 @@
                 });
             };
 
-            form.find("input, select").on('change', checkDisableIfs);
+            form.find(":input").on('change', checkDisableIfs);
             checkDisableIfs();
 
-            $.getJSON('config', function(data) {
+            $.getJSON('config').done(function(data) {
                 for (var key in data) {
                     if (!data.hasOwnProperty(key)) continue;
                     var value = data[key];
-
-                    console.log(key + " = " + value);
                 }
 
                 form.find(':input').each(function() {
@@ -122,6 +119,60 @@
                 });
 
                 checkDisableIfs();
+            });
+
+            var wifiNetworksScanButton = form.find('.wifi-networks-scan');
+            var wifiNetworksDropdownButton = form.find('.wifi-networks-dropdown');
+            var wifiNetworksList = form.find('.wifi-networks');
+            var wifiNetworksOpenList = wifiNetworksList.find('.wifi-networks-open');
+            var wifiNetworksSecuredList = wifiNetworksList.find('.wifi-networks-secured');
+            var wifiNetworksSsidInput = form.find('.wifi-networks-ssid');
+            var wifiNetworksPasswordInput = form.find('.wifi-networks-pass');
+            var wifiNetworksPasswordEmptyInput = form.find('.wifi-networks-pass-empty');
+            wifiNetworksScanButton.on('click', function() {
+                wifiNetworksOpenList.empty();
+                wifiNetworksSecuredList.empty();
+
+                wifiNetworksScanButton.attr('disabled', true);
+                wifiNetworksDropdownButton.attr('disabled', true);
+                $.getJSON('wifi/scan').always(function() {
+                    wifiNetworksScanButton.attr('disabled', false);
+                    wifiNetworksDropdownButton.attr('disabled', false);
+                }).done(function(data) {
+                    data.forEach(function(network) {
+                        var entry = $('<a class="wifi-network dropdown-item" href="javascript:void(0);"></a>');
+                        var open = network.authmode == "OPEN";
+                        entry.data('ssid', network.ssid);
+                        entry.data('rssi', network.rssi);
+                        entry.data('authmode', network.authmode);
+                        entry.data('open', open);
+                        entry.text(network.ssid + (open ? '' : " (" + network.authmode + ")"));
+
+                        var rssiTextClass = 'danger';
+                        if (network.rssi > -50) {
+                            rssiTextClass = 'primary';
+                        } else if (network.rssi > -60) {
+                            rssiTextClass = 'success';
+                        } else if (network.rssi > -70) {
+                            rssiTextClass = 'warning';
+                        }
+
+                        entry.append(' <span class="text-' + rssiTextClass + '">' + network.rssi + 'dBm</span>');
+
+                        entry.appendTo(open ? wifiNetworksOpenList : wifiNetworksSecuredList);
+                    });
+
+                    wifiNetworksList.find('.wifi-network').on('click', function() {
+                        wifiNetworksSsidInput.val($(this).data('ssid'));
+                        wifiNetworksPasswordInput.val('').attr('disabled', $(this).data('open'));
+                        wifiNetworksPasswordEmptyInput.val('').attr('disabled', !$(this).data('open'));
+                    });
+                });
+            });
+
+            wifiNetworksSsidInput.on('input change', function() {
+                wifiNetworksPasswordInput.attr('disabled', false);
+                wifiNetworksPasswordEmptyInput.attr('disabled', true);
             });
         });
 
@@ -233,7 +284,7 @@
                         <div class="card-header">
                             WiFi
                             <div class="custom-control custom-switch d-inline float-right">
-                                <input type="checkbox" name="w_sta_active" value="1" class="custom-control-input" id="switch-wifi-sta">
+                                <input type="checkbox" name="w_sta_active" value="1" checked class="custom-control-input" id="switch-wifi-sta">
                                 <label class="custom-control-label" for="switch-wifi-sta"></label>
                             </div>
                             <div class="d-inline mr-1 float-right">
@@ -245,31 +296,28 @@
                                 <div class="col-8">
                                     <label>SSID</label>
                                     <div class="input-group">
-                                        <input type="text" name="w_sta_ssid" class="form-control" maxlength="32" required>
+                                        <input type="text" name="w_sta_ssid" class="wifi-networks-ssid form-control" maxlength="32" required>
                                         <div class="input-group-append">
-                                            <button type="button" class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" data-toggle="dropdown"></button>
-                                            <div class="dropdown-menu">
+                                            <button type="button" class="wifi-networks-dropdown btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" data-toggle="dropdown" disabled></button>
+                                            <div class="wifi-networks dropdown-menu">
                                                 <h6 class="dropdown-header">Open networks</h6>
-                                                <span class="open-networks">
-                                                    <a class="dropdown-item" href="javascript:void(0);">PUBLIC WIFI</a>
+                                                <span class="wifi-networks-open">
                                                 </span>
                                                 <h6 class="dropdown-header">Secured networks</h6>
-                                                <span class="secured-networks">
-                                                    <a class="dropdown-item" href="javascript:void(0);">Blok2</a>
-                                                    <a class="dropdown-item" href="javascript:void(0);">VM4D5B920</a>
-                                                    <a class="dropdown-item" href="javascript:void(0);">ESP_D99F9E</a>
+                                                <span class="wifi-networks-secured">
                                                 </span>
                                             </div>
                                         </div>
                                         <div class="input-group-append">
-                                            <button type="button" class="btn btn-outline-secondary">Scan</button>
+                                            <button type="button" class="wifi-networks-scan btn btn-outline-secondary">Scan</button>
                                         </div>
                                     </div>
                                 </div>
                                 <div class="col">
                                     <label>Password</label>
                                     <div class="input-group">
-                                        <input type="password" name="w_sta_pass" class="form-control">
+                                        <input type="password" name="w_sta_pass" class="wifi-networks-pass form-control">
+                                        <input type="hidden" name="w_sta_pass" class="wifi-networks-pass-empty" value="" disabled>
                                     </div>
                                 </div>
                             </div>

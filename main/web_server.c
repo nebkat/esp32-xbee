@@ -418,7 +418,7 @@ static httpd_handle_t web_server_start(void)
         httpd_register_uri_handler(server, &uri_log_get);
 
         httpd_uri_t uri_wifi_scan_get = {
-                .uri        = "/wifi_scan",
+                .uri        = "/wifi/scan",
                 .method     = HTTP_GET,
                 .handler    = wifi_scan_get_handler
         };
