@@ -256,7 +256,7 @@ void wifi_init() {
 	// SoftAP
 	wifi_config_t wifi_config_ap = {};
 	wifi_config_ap.ap.max_connection = 4;
-	bool ap_enable = config_get_boola(CONF_ITEM(KEY_CONFIG_WIFI_AP_ACTIVE));
+	bool ap_enable = config_get_bool1(CONF_ITEM(KEY_CONFIG_WIFI_AP_ACTIVE));
 	size_t ap_ssid_len = sizeof(wifi_config_ap.ap.ssid);
 	config_get_str_blob(CONF_ITEM(KEY_CONFIG_WIFI_AP_SSID), &wifi_config_ap.ap.ssid, &ap_ssid_len);
 	wifi_config_ap.ap.ssid_len = ap_ssid_len;
@@ -275,7 +275,7 @@ void wifi_init() {
 
 	// STA
 	wifi_config_t wifi_config_sta = {};
-	bool sta_enable = config_get_boola(CONF_ITEM(KEY_CONFIG_WIFI_STA_ACTIVE));
+	bool sta_enable = config_get_bool1(CONF_ITEM(KEY_CONFIG_WIFI_STA_ACTIVE));
 	size_t sta_ssid_len = sizeof(wifi_config_sta.sta.ssid);
 	config_get_str_blob(CONF_ITEM(KEY_CONFIG_WIFI_STA_SSID), &wifi_config_sta.sta.ssid, &sta_ssid_len);
 	size_t sta_password_len = sizeof(wifi_config_sta.sta.password);

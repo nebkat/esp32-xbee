@@ -51,8 +51,8 @@ void uart_init() {
     uart_port = config_get_u8(CONF_ITEM(KEY_CONFIG_UART_NUM));
 
     uart_hw_flowcontrol_t flow_ctrl;
-    bool flow_ctrl_rts = config_get_boola(CONF_ITEM(KEY_CONFIG_UART_FLOW_CTRL_RTS));
-    bool flow_ctrl_cts = config_get_boola(CONF_ITEM(KEY_CONFIG_UART_FLOW_CTRL_CTS));
+    bool flow_ctrl_rts = config_get_bool1(CONF_ITEM(KEY_CONFIG_UART_FLOW_CTRL_RTS));
+    bool flow_ctrl_cts = config_get_bool1(CONF_ITEM(KEY_CONFIG_UART_FLOW_CTRL_CTS));
     if (flow_ctrl_rts && flow_ctrl_cts) {
         flow_ctrl = UART_HW_FLOWCTRL_CTS_RTS;
     } else if (flow_ctrl_rts) {

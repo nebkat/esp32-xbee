@@ -132,7 +132,7 @@ void ntrip_server_task(void *ctx) {
 }
 
 void ntrip_server_init() {
-    if (!config_get_boola(CONF_ITEM(KEY_CONFIG_NTRIP_SERVER_ACTIVE))) return;
+    if (!config_get_bool1(CONF_ITEM(KEY_CONFIG_NTRIP_SERVER_ACTIVE))) return;
 
     xTaskCreate(ntrip_server_task, "ntrip_server_task", 16384, NULL, TASK_PRIORITY_NTRIP, NULL);
 }

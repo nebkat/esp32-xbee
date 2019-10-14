@@ -269,7 +269,7 @@ void ntrip_caster_task(void *ctx) {
 }
 
 void ntrip_caster_init() {
-    if (!config_get_boola(CONF_ITEM(KEY_CONFIG_NTRIP_CASTER_ACTIVE))) return;
+    if (!config_get_bool1(CONF_ITEM(KEY_CONFIG_NTRIP_CASTER_ACTIVE))) return;
 
     xTaskCreate(ntrip_caster_task, "ntrip_caster_task", 16384, NULL, TASK_PRIORITY_NTRIP, NULL);
 }

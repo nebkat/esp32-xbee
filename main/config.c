@@ -239,7 +239,7 @@ const config_item_t *config_items_get(int *count) {
 esp_err_t config_set(const config_item_t *item, void *value) {
     switch (item->type) {
         case CONFIG_ITEM_TYPE_BOOL:
-            return config_set_boola(item->key, *((bool *)value));
+            return config_set_bool1(item->key, *((bool *) value));
         case CONFIG_ITEM_TYPE_INT8:
             return config_set_i8(item->key, *((int8_t *)value));
         case CONFIG_ITEM_TYPE_INT16:
@@ -296,7 +296,7 @@ esp_err_t config_set_u64(const char *key, uint64_t value) {
     return nvs_set_u64(config_handle, key, value);
 }
 
-esp_err_t config_set_boola(const char *key, bool value) {
+esp_err_t config_set_bool1(const char *key, bool value) {
     return nvs_set_i8(config_handle, key, value);
 }
 
@@ -379,7 +379,7 @@ uint64_t config_get_u64(const config_item_t *item) {
     return value;
 }
 
-bool config_get_boola(const config_item_t *item) {
+bool config_get_bool1(const config_item_t *item) {
     int8_t value = item->def.bool1;
     nvs_get_i8(config_handle, item->key, &value);
     return value > 0;

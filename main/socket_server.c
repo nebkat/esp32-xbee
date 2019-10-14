@@ -353,7 +353,7 @@ static void socket_server_task(void *ctx) {
 }
 
 void socket_server_init() {
-    if (!config_get_boola(CONF_ITEM(KEY_CONFIG_SOCKET_SERVER_ACTIVE))) return;
+    if (!config_get_bool1(CONF_ITEM(KEY_CONFIG_SOCKET_SERVER_ACTIVE))) return;
 
     xTaskCreate(socket_server_task, "socket_server_task", 32768, NULL, 2, NULL);
 

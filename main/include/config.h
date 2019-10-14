@@ -104,6 +104,7 @@ const config_item_t * config_get_item(const char *key);
 
 #define CONF_ITEM( key ) config_get_item(key)
 
+bool config_get_bool1(const config_item_t *item);
 int8_t config_get_i8(const config_item_t *item);
 int16_t config_get_i16(const config_item_t *item);
 int32_t config_get_i32(const config_item_t *item);
@@ -112,12 +113,12 @@ uint8_t config_get_u8(const config_item_t *item);
 uint16_t config_get_u16(const config_item_t *item);
 uint32_t config_get_u32(const config_item_t *item);
 uint64_t config_get_u64(const config_item_t *item);
-bool config_get_boola(const config_item_t *item);
 
 esp_err_t config_get_str(const char* key, char *out_value, size_t *len, const char *default_value);
 esp_err_t config_get_blob(const char* key, char *out_value, size_t *len, const char *default_value);
 
 esp_err_t config_set(const config_item_t *item, void *value);
+esp_err_t config_set_bool1(const char *key, bool value);
 esp_err_t config_set_i8(const char *key, int8_t value);
 esp_err_t config_set_i16(const char *key, int16_t value);
 esp_err_t config_set_i32(const char *key, int32_t value);
@@ -126,7 +127,6 @@ esp_err_t config_set_u8(const char *key, uint8_t value);
 esp_err_t config_set_u16(const char *key, uint16_t value);
 esp_err_t config_set_u32(const char *key, uint32_t value);
 esp_err_t config_set_u64(const char *key, uint64_t value);
-esp_err_t config_set_boola(const char *key, bool value);
 esp_err_t config_set_str(const char *key, char *value);
 esp_err_t config_set_blob(const char *key, char *value, size_t length);
 
