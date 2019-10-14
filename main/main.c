@@ -59,7 +59,7 @@ static void reset_button_task() {
 void app_main()
 {
     status_led_init();
-    status_led_handle_t setup_led_white = status_led_add(0xFFFFFF33, STATUS_LED_BLINK, 100, 2500, 0);
+    status_led_handle_t setup_led_white = status_led_add(0xFFFFFF33, STATUS_LED_BLINK, 100, 1000, 0);
 
     xTaskCreate(reset_button_task, "reset_button", 4096, NULL, TASK_PRIORITY_RESET_BUTTON, NULL);
 
