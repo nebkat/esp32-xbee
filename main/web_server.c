@@ -349,10 +349,8 @@ static esp_err_t config_post_handler(httpd_req_t *req) {
                 }
             }
 
-            if (err == ESP_OK) {
-                ESP_LOGI(TAG, "Set %s = %s (%d)", key, entry->valuestring, strlen(entry->valuestring));
-            } else {
-                ESP_LOGE(TAG, "Error setting %s = %s: %d - %s", key, entry->valuestring, err, esp_err_to_name(err));
+            if (err != ESP_OK) {
+                ESP_LOGE(TAG, "Error setting %s = %s: %d - %s", item.key, entry->valuestring, err, esp_err_to_name(err));
             }
         }
     }
