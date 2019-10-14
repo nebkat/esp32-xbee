@@ -104,26 +104,20 @@
                 }
 
                 form.find(':input').each(function() {
-                    if (this.name && typeof data[this.name] !== 'undefined') {
-                        var names = data[this.name];
-                        var $this = $(this);
-                        if(Object.prototype.toString.call(names) !== '[object Array]'){
-                            names = [names]; //backwards compat to old version of this code
-                        }
-                        if(this.type === 'checkbox' || this.type === 'radio' || (this.type === 'hidden' && $this.data('checkbox'))) {
-                            var val = $this.val();
-                            var found = false;
-                            for(var i = 0; i < names.length; i++){
-                                if(names[i] == val){
-                                    found = true;
-                                    break;
-                                }
-                            }
-                            $this.prop('checked', found);
-                            if (this.type === 'hidden') $this.prop('disabled', !found);
+                    if (!this.name || typeof data[this.name] === 'undefined') return;
+
+                    var value = data[this.name];
+                    var $this = $(this);
+                    if(this.type === 'checkbox' || this.type === 'radio' || (this.type === 'hidden' && $this.data('checkbox'))) {
+                        if (this.type !== 'hidden') {
+                            var active = $(this).val() == value;
+                            $this.prop('checked', active);
+                            $this.parent('.btn').toggleClass('active', active);
                         } else {
-                            $this.val(names[0]);
+                            $this.prop('disabled', $(this).val() != value);
                         }
+                    } else {
+                        $this.val(value);
                     }
                 });
 
