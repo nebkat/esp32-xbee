@@ -43,6 +43,7 @@ static const char *TAG = "MAIN";
 
 static void reset_button_task() {
     QueueHandle_t button_queue = button_init(PIN_BIT(GPIO_NUM_0));
+    gpio_set_pull_mode(GPIO_NUM_0, GPIO_PULLUP_ONLY);
     while (true) {
         button_event_t button_ev;
         if (xQueueReceive(button_queue, &button_ev, 1000 / portTICK_PERIOD_MS)) {
