@@ -293,7 +293,7 @@ void wifi_init() {
         if (ap_led_color.rgba != 0) status_led_ap = status_led_add(ap_led_color.rgba, STATUS_LED_STATIC, 250, 2500, 0);
     }
     if (sta_enable) {
-        uart_nmea("PESP,WIFI,STA,SSID,%s,%s,%s", wifi_config_sta.sta.ssid, sta_password_len == 0 ? "OPEN" : "PASSWORD");
+        uart_nmea("PESP,WIFI,STA,SSID,%s,%s", wifi_config_sta.sta.ssid, sta_password_len == 0 ? "OPEN" : "PASSWORD");
         config_color_t sta_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_WIFI_STA_COLOR));
         if (sta_led_color.rgba != 0) status_led_sta = status_led_add(sta_led_color.rgba, STATUS_LED_STATIC, 250, 2500, 0);
     }
