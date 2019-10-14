@@ -269,7 +269,6 @@ esp_err_t config_set(const config_item_t *item, void *value) {
         default:
             return ESP_ERR_INVALID_ARG;
     }
-    return ESP_FAIL;
 }
 
 esp_err_t config_set_i8(const char *key, int8_t value) {
