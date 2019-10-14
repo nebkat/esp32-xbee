@@ -33,11 +33,14 @@
 
 static const char *TAG = "WIFI";
 
+#define STA_RECONNECT_ATTEMPTS 5
 #define RSSI_LED_GPIO_NUM GPIO_NUM_18
 
 static EventGroupHandle_t wifi_event_group;
 const int GOT_IPV4_BIT = BIT0;
 const int GOT_IPV6_BIT = BIT1;
+
+static int sta_reconnect_attempts = STA_RECONNECT_ATTEMPTS;
 
 static int rssi_led_duration = 0;
 static TaskHandle_t rssi_task;
@@ -79,12 +82,14 @@ static void handle_sta_connected(void *arg, esp_event_base_t base, int32_t event
     const wifi_event_sta_connected_t *event = (const wifi_event_sta_connected_t *) event_data;
     ESP_LOGI(TAG, "WIFI_EVENT_STA_CONNECTED: ssid: %.*s", event->ssid_len, event->ssid);
 
+    uart_nmea("PESP,WIFI,STA,CONNECTED,%.*s", event->ssid_len, event->ssid);
+
+    sta_reconnect_attempts = STA_RECONNECT_ATTEMPTS;
+
     // Keep track of signal strength
     xTaskCreate(wifi_rssi_led_task, "wifi_rssi_led", 1024, NULL, TASK_PRIORITY_STATUS_LED, rssi_task);
 
     tcpip_adapter_create_ip6_linklocal(TCPIP_ADAPTER_IF_STA);
-
-    uart_nmea("PESP,WIFI,STA,CONNECTED,%.*s", event->ssid_len, event->ssid);
 
     if (status_led_sta != NULL) status_led_sta->flashing_mode = STATUS_LED_FADE;
 }
@@ -105,13 +110,21 @@ static void handle_sta_disconnected(void *arg, esp_event_base_t base, int32_t ev
             break;
         default:
             reason = "UNKNOWN";
-
-            // Try to reconnect
-            esp_wifi_connect();
     }
     ESP_LOGI(TAG, "WIFI_EVENT_STA_DISCONNECTED: ssid: %.*s, reason: %d (%s)", event->ssid_len, event->ssid, event->reason, reason);
 
     uart_nmea("PESP,WIFI,STA,DISCONNECTED,%.*s,%d,%s", event->ssid_len, event->ssid, event->reason, reason);
+
+    // Attempt to reconnect
+    if (sta_reconnect_attempts > 0) {
+        sta_reconnect_attempts--;
+
+        ESP_LOGI(TAG, "Station Reconnecting: %.*s, remaining: %d", event->ssid_len, event->ssid, sta_reconnect_attempts);
+
+        uart_nmea("PESP,WIFI,STA,RECONNECTING,%.*s,%d", event->ssid_len, event->ssid, sta_reconnect_attempts);
+
+        esp_wifi_connect();
+    }
 
     // No longer tracking signal strength
     gpio_set_level(RSSI_LED_GPIO_NUM, false);
@@ -295,7 +308,7 @@ void wifi_init() {
         if (ap_led_color.rgba != 0) status_led_ap = status_led_add(ap_led_color.rgba, STATUS_LED_STATIC, 250, 2500, 0);
     }
     if (sta_enable) {
-        uart_nmea("PESP,WIFI,STA,SSID,%s,%s", wifi_config_sta.sta.ssid, sta_password_len == 0 ? "OPEN" : "PASSWORD");
+        uart_nmea("PESP,WIFI,STA,CONNECTING,%s,%s", wifi_config_sta.sta.ssid, sta_password_len == 0 ? "OPEN" : "PASSWORD");
         config_color_t sta_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_WIFI_STA_COLOR));
         if (sta_led_color.rgba != 0) status_led_sta = status_led_add(sta_led_color.rgba, STATUS_LED_STATIC, 250, 2500, 0);
     }
