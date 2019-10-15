@@ -43,7 +43,7 @@ const int GOT_IPV6_BIT = BIT1;
 static int sta_reconnect_attempts = STA_RECONNECT_ATTEMPTS;
 
 static int rssi_led_duration = 0;
-static TaskHandle_t rssi_task;
+static TaskHandle_t rssi_task = NULL;
 
 static status_led_handle_t status_led_ap;
 static status_led_handle_t status_led_sta;
@@ -128,7 +128,8 @@ static void handle_sta_disconnected(void *arg, esp_event_base_t base, int32_t ev
 
     // No longer tracking signal strength
     gpio_set_level(RSSI_LED_GPIO_NUM, false);
-    vTaskDelete(rssi_task);
+    if (rssi_task != NULL) vTaskDelete(rssi_task);
+    rssi_task = NULL;
 
     xEventGroupClearBits(wifi_event_group, GOT_IPV4_BIT);
     xEventGroupClearBits(wifi_event_group, GOT_IPV6_BIT);
