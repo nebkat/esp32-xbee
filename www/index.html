@@ -59,9 +59,12 @@
             form.on('submit', function(e) {
                 e.preventDefault();
 
-                if (!form[0].checkValidity()) {
-                    form.find(':submit').click();
+                if (form[0].checkValidity() === false) {
+                    e.preventDefault();
+                    e.stopPropagation();
                 }
+
+                form.addClass('was-validated');
 
                 $.post('config', JSON.stringify($(this).serializeObject()));
             });
@@ -84,19 +87,33 @@
                 form.find("[data-disable-if]").each(function() {
                     var condition = $(this).data('disable-if-condition');
                     if (typeof condition === 'undefined') condition = ':not(:checked)';
-                    console.log(condition);
+
                     var disabled = form.find($(this).data('disable-if')).filter(condition).length > 0;
-                    $(this).attr('disabled', disabled);
-                    if (disabled) {
-                        $(this).addClass('disabled');
-                    } else {
-                        $(this).removeClass('disabled');
+                    var current = $(this).hasClass('disabled');
+                    if (disabled === current) return;
+
+                    $(this).prop('disabled', disabled);
+                    $(this).toggleClass('disabled', disabled);
+
+                    if ($(this).hasClass('card')) {
+                        $(this).find('.card-body :input').each(function() {
+                            if (disabled) {
+                                $(this).data('prop-disabled-previous', $(this).prop('disabled') === true)
+                                        .data('class-disabled-previous', $(this).hasClass('disabled'))
+                                        .prop('disabled', true)
+                                        .addClass('disabled');
+                            } else {
+                                $(this).prop('disabled', $(this).data('prop-disabled-previous') === true)
+                                        .toggleClass('disabled', $(this).data('class-disabled-previous') === true);
+                            }
+                        })
                     }
                 });
             };
 
-            form.find(":input").on('change', checkDisableIfs);
             checkDisableIfs();
+
+            form.find(":input").on('change', checkDisableIfs);
 
             $.getJSON('config').done(function(data) {
                 for (var key in data) {
@@ -175,11 +192,11 @@
                 wifiNetworksOpenList.empty();
                 wifiNetworksSecuredList.empty();
 
-                wifiNetworksScanButton.attr('disabled', true);
-                wifiNetworksDropdownButton.attr('disabled', true);
+                wifiNetworksScanButton.prop('disabled', true);
+                wifiNetworksDropdownButton.prop('disabled', true);
                 $.getJSON('wifi/scan').always(function() {
-                    wifiNetworksScanButton.attr('disabled', false);
-                    wifiNetworksDropdownButton.attr('disabled', false);
+                    wifiNetworksScanButton.prop('disabled', false);
+                    wifiNetworksDropdownButton.prop('disabled', false);
                 }).done(function(data) {
                     data.forEach(function(network) {
                         var entry = $('<a class="wifi-network dropdown-item" href="javascript:void(0);"></a>');
@@ -197,16 +214,44 @@
 
                     wifiNetworksList.find('.wifi-network').on('click', function() {
                         wifiNetworksSsidInput.val($(this).data('ssid'));
-                        wifiNetworksPasswordInput.val('').attr('disabled', $(this).data('open'));
-                        wifiNetworksPasswordEmptyInput.val('').attr('disabled', !$(this).data('open'));
+                        wifiNetworksPasswordInput.val('').prop('disabled', $(this).data('open'));
+                        wifiNetworksPasswordEmptyInput.val('').prop('disabled', !$(this).data('open'));
                     });
                 });
             });
 
             wifiNetworksSsidInput.on('input change', function() {
-                wifiNetworksPasswordInput.attr('disabled', false);
-                wifiNetworksPasswordEmptyInput.attr('disabled', true);
+                wifiNetworksPasswordInput.prop('disabled', false);
+                wifiNetworksPasswordEmptyInput.prop('disabled', true);
             });
+
+
+            wifiApIpByte1Input = form.find('input[name="w_ap_ip_1"]');
+            wifiApIpByte2Input = form.find('input[name="w_ap_ip_2"]');
+            wifiApIpByte3Input = form.find('input[name="w_ap_ip_3"]');
+            wifiApIpByte4Input = form.find('input[name="w_ap_ip_4"]');
+            wifiApIpPrefixText = form.find('.wifi-ap-ip-prefix');
+            wifiApIpMinInput = form.find('input[name="w_ap_ip_min"]');
+            wifiApIpMaxInput = form.find('input[name="w_ap_ip_max"]');
+            wifiApSubnetInput = form.find('select[name="w_ap_ip_sub"]');
+
+            wifiApIpByte3Input.on('change input', function() {
+                wifiApIpPrefixText.text(wifiApIpByte1Input.val() + "." + wifiApIpByte2Input.val() + "." + wifiApIpByte3Input.val() + ".");
+            }).trigger('change');
+
+            wifiApSubnetInput.add(wifiApIpByte4Input).on('change input', function() {
+                var subnet = wifiApSubnetInput.children('option:selected').val();
+                var mask = 255 >> (subnet - 24);
+
+                var ip = Math.max(0, Math.min(255, wifiApIpByte4Input.val()));
+                var min = (ip & ~mask) + 1;
+                var max = (ip | mask) - 1;
+
+                wifiApIpByte4Input.prop('min', min).prop('max', max).toggleClass('is-invalid', ip < min || ip > max);
+
+                wifiApIpMinInput.val(min);
+                wifiApIpMaxInput.val(max);
+            }).trigger('change');
         });
 
         function autoTab(target) {
@@ -243,7 +288,7 @@
             <h2>ESP32 XBee Configuration</h2>
             <p class="lead">Adjust the settings below and then click on "Save All" at the bottom of the page. The device will restart with the new settings applied. If you have adjusted WiFi settings the device may be moved onto a new IP address, or require you to reconnect to its access point.</p>
         </div>
-        <form class="needs-validation" id="form">
+        <form class="needs-validation" id="form" novalidate>
             <div class="row mb-5">
                 <div class="col-xl-6">
                     <div class="card mb-3">
@@ -263,11 +308,11 @@
                                 </div>
                                 <div class="col-4">
                                     <label>Username</label>
-                                    <input type="text" name="admin_username" data-disable-if="select[name='admin_auth_method'] > option[value!='3']" data-disable-if-condition=":selected" class="form-control" maxlength="32"/>
+                                    <input type="text" name="admin_username" data-disable-if="select[name='admin_auth_method'] > option[value!='3']" data-disable-if-condition=":selected" class="form-control" maxlength="32" required/>
                                 </div>
                                 <div class="col-4">
                                     <label>Password</label>
-                                    <input type="password" name="admin_password" data-disable-if="select[name='admin_auth_method'] > option[value!='3']" data-disable-if-condition=":selected" class="form-control" maxlength="64"/>
+                                    <input type="password" name="admin_password" data-disable-if="select[name='admin_auth_method'] > option[value!='3']" data-disable-if-condition=":selected" class="form-control" maxlength="64" required/>
                                 </div>
                             </div>
                         </div>
@@ -452,7 +497,7 @@
                                 <div class="col-6">
                                     <label>Password</label>
                                     <div class="input-group">
-                                        <input type="password" name="w_ap_pass" data-disable-if="select[name='w_ap_auth_mode'] > option[value='0']" data-disable-if-condition=":selected" class="form-control">
+                                        <input type="password" name="w_ap_pass" data-disable-if="select[name='w_ap_auth_mode'] > option[value='0']" data-disable-if-condition=":selected" class="form-control" style="flex-grow: 2" >
                                         <select name="w_ap_auth_mode" class="custom-select">
                                             <option value="0" selected>Open</option>
                                             <option value="1">WEP</option>
@@ -496,9 +541,9 @@
                                     <label>Min/max IP</label>
                                     <div class="input-group">
                                         <div class="input-group-prepend">
-                                            <span class="input-group-text">192.168.255.</span>
+                                            <span class="wifi-ap-ip-prefix input-group-text">192.168.4.</span>
                                         </div>
-                                        <input type="number" name="w_ap_ip_min" value="253" disabled class="form-control text-center px-1">
+                                        <input type="number" name="w_ap_ip_min" value="1" disabled class="form-control text-center px-1">
                                         <div class="input-group-append input-group-prepend">
                                             <span class="input-group-text">-</span>
                                         </div>
@@ -574,11 +619,11 @@
                                 <div class="col">
                                     <label>Host and port</label>
                                     <div class="input-group">
-                                        <input type="text" name="ntr_cli_host" class="form-control" style="flex-grow: 3">
+                                        <input type="text" name="ntr_cli_host" class="form-control" style="flex-grow: 3" required>
                                         <div class="input-group-append input-group-prepend">
                                             <span class="input-group-text">:</span>
                                         </div>
-                                        <input type="number" name="ntr_cli_port" maxlength="5" min="0" max="65535" class="form-control">
+                                        <input type="number" name="ntr_cli_port" maxlength="5" min="0" max="65535" class="form-control" required>
                                     </div>
                                 </div>
                                 <div class="col">
@@ -630,11 +675,11 @@
                                 <div class="col">
                                     <label>Host and port</label>
                                     <div class="input-group">
-                                        <input type="text" name="ntr_srv_host" class="form-control" style="flex-grow: 3">
+                                        <input type="text" name="ntr_srv_host" class="form-control" style="flex-grow: 3" required>
                                         <div class="input-group-append input-group-prepend">
                                             <span class="input-group-text">:</span>
                                         </div>
-                                        <input type="number" name="ntr_srv_port" maxlength="5" min="0" max="65535" class="form-control">
+                                        <input type="number" name="ntr_srv_port" maxlength="5" min="0" max="65535" class="form-control" required>
                                     </div>
                                 </div>
                                 <div class="col">
@@ -686,7 +731,7 @@
                                 <div class="col">
                                     <label>Port</label>
                                     <div class="input-group">
-                                        <input type="number" name="ntr_cst_port" maxlength="5" min="0" max="65535" class="form-control">
+                                        <input type="number" name="ntr_cst_port" maxlength="5" min="0" max="65535" class="form-control" required>
                                     </div>
                                 </div>
                                 <div class="col">
