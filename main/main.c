@@ -72,7 +72,7 @@ void app_main()
     esp_log_level_set("system_api", ESP_LOG_WARN);
     esp_log_level_set("wifi", ESP_LOG_WARN);
 
-    uart_nmea("PESP,INIT,START,%s", PROJECT_VER);
+    uart_nmea("$PESP,INIT,START,%s", PROJECT_VER);
 
     ESP_LOGI(TAG, "Starting ESP32 XBee UART Interface");
     ESP_LOGI(TAG, "Author: Nebojša Cvetković");
@@ -92,5 +92,5 @@ void app_main()
 
     socket_server_init();
 
-    uart_nmea("PESP,INIT,COMPLETE");
+    uart_nmea("$PESP,INIT,COMPLETE");
 }

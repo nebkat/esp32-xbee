@@ -336,7 +336,7 @@ esp_err_t config_init() {
 }
 
 esp_err_t config_reset() {
-    uart_nmea("PESP,CFG,RESET");
+    uart_nmea("$PESP,CFG,RESET");
 
     return nvs_erase_all(config_handle);
 }
@@ -501,7 +501,7 @@ esp_err_t config_get_str_blob(const config_item_t *item, void *out_value, size_t
 }
 
 esp_err_t config_commit() {
-    uart_nmea("PESP,CFG,UPDATED");
+    uart_nmea("$PESP,CFG,UPDATED");
 
     return nvs_commit(config_handle);
 }

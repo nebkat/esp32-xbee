@@ -26,7 +26,7 @@
 uint8_t nmea_calculate_checksum(char *sentence) {
     uint8_t checksum = 0;
     unsigned int length = strlen(sentence);
-    for (unsigned int i = 0; i < length; i++) {
+    for (unsigned int i = 1; i < length; i++) {
         checksum ^= (uint8_t) sentence[i];
     }
 
@@ -48,7 +48,7 @@ int nmea_vasprintf(char **strp, const char *fmt, va_list args) {
     char *sentence;
     vasprintf(&sentence, fmt, args);
     uint8_t checksum = nmea_calculate_checksum(sentence);
-    int l = asprintf(strp, "$%s*%02X\r\n", sentence, checksum);
+    int l = asprintf(strp, "%s*%02X\r\n", sentence, checksum);
     free(sentence);
 
     return l;

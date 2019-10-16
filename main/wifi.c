@@ -82,7 +82,7 @@ static void handle_sta_connected(void *arg, esp_event_base_t base, int32_t event
     const wifi_event_sta_connected_t *event = (const wifi_event_sta_connected_t *) event_data;
     ESP_LOGI(TAG, "WIFI_EVENT_STA_CONNECTED: ssid: %.*s", event->ssid_len, event->ssid);
 
-    uart_nmea("PESP,WIFI,STA,CONNECTED,%.*s", event->ssid_len, event->ssid);
+    uart_nmea("$PESP,WIFI,STA,CONNECTED,%.*s", event->ssid_len, event->ssid);
 
     sta_reconnect_attempts = STA_RECONNECT_ATTEMPTS;
 
@@ -113,7 +113,7 @@ static void handle_sta_disconnected(void *arg, esp_event_base_t base, int32_t ev
     }
     ESP_LOGI(TAG, "WIFI_EVENT_STA_DISCONNECTED: ssid: %.*s, reason: %d (%s)", event->ssid_len, event->ssid, event->reason, reason);
 
-    uart_nmea("PESP,WIFI,STA,DISCONNECTED,%.*s,%d,%s", event->ssid_len, event->ssid, event->reason, reason);
+    uart_nmea("$PESP,WIFI,STA,DISCONNECTED,%.*s,%d,%s", event->ssid_len, event->ssid, event->reason, reason);
 
     // Attempt to reconnect
     if (sta_reconnect_attempts > 0) {
@@ -121,7 +121,7 @@ static void handle_sta_disconnected(void *arg, esp_event_base_t base, int32_t ev
 
         ESP_LOGI(TAG, "Station Reconnecting: %.*s, remaining: %d", event->ssid_len, event->ssid, sta_reconnect_attempts);
 
-        uart_nmea("PESP,WIFI,STA,RECONNECTING,%.*s,%d", event->ssid_len, event->ssid, sta_reconnect_attempts);
+        uart_nmea("$PESP,WIFI,STA,RECONNECTING,%.*s,%d", event->ssid_len, event->ssid, sta_reconnect_attempts);
 
         esp_wifi_connect();
     }
@@ -143,7 +143,7 @@ static void handle_sta_auth_mode_change(void *arg, esp_event_base_t base, int32_
     char *new_auth_mode = wifi_auth_mode_name(event->new_mode);
     ESP_LOGI(TAG, "WIFI_EVENT_STA_AUTHMODE_CHANGE: old: %s, new: %s", old_auth_mode, new_auth_mode);
 
-    uart_nmea("PESP,WIFI,STA,AUTH_MODE_CHANGED,%s,%s", old_auth_mode, new_auth_mode);
+    uart_nmea("$PESP,WIFI,STA,AUTH_MODE_CHANGED,%s,%s", old_auth_mode, new_auth_mode);
 }
 
 static void handle_ap_start(void *arg, esp_event_base_t base, int32_t event_id, void *event_data) {
@@ -159,7 +159,7 @@ static void handle_ap_sta_connected(void *arg, esp_event_base_t base, int32_t ev
     const wifi_event_ap_staconnected_t *event = (const wifi_event_ap_staconnected_t *) event_data;
     ESP_LOGI(TAG, "WIFI_EVENT_AP_STACONNECTED: mac: " MACSTR, MAC2STR(event->mac));
 
-    uart_nmea("PESP,WIFI,AP,STA_CONNECTED," MACSTR, MAC2STR(event->mac));
+    uart_nmea("$PESP,WIFI,AP,STA_CONNECTED," MACSTR, MAC2STR(event->mac));
 
     if (status_led_ap != NULL) status_led_ap->flashing_mode = STATUS_LED_FADE;
 }
@@ -169,7 +169,7 @@ static void handle_ap_sta_disconnected(void *arg, esp_event_base_t base, int32_t
     ESP_LOGI(TAG, "WIFI_EVENT_AP_STADISCONNECTED: mac: "
             MACSTR, MAC2STR(event->mac));
 
-    uart_nmea("PESP,WIFI,AP,STA_DISCONNECTED," MACSTR, MAC2STR(event->mac));
+    uart_nmea("$PESP,WIFI,AP,STA_DISCONNECTED," MACSTR, MAC2STR(event->mac));
 
     wifi_sta_list_t ap_sta_list;
     esp_wifi_ap_get_sta_list(&ap_sta_list);
@@ -184,7 +184,7 @@ static void handle_sta_got_ip(void *arg, esp_event_base_t base, int32_t event_id
             IP2STR(&event->ip_info.netmask),
             IP2STR(&event->ip_info.gw));
 
-    uart_nmea("PESP,WIFI,STA,IP," IPSTR "/%d," IPSTR,
+    uart_nmea("$PESP,WIFI,STA,IP," IPSTR "/%d," IPSTR,
             IP2STR(&event->ip_info.ip),
             ffs(~event->ip_info.netmask.addr) - 1,
             IP2STR(&event->ip_info.gw));
@@ -201,7 +201,7 @@ static void handle_ap_sta_ip_assigned(void *arg, esp_event_base_t base, int32_t 
     const ip_event_ap_staipassigned_t *event = (const ip_event_ap_staipassigned_t *) event_data;
     ESP_LOGI(TAG, "IP_EVENT_AP_STAIPASSIGNED: ip: " IPSTR, IP2STR(&event->ip));
 
-    uart_nmea("PESP,WIFI,AP,STA_IP_ASSIGNED," IPSTR, IP2STR(&event->ip));
+    uart_nmea("$PESP,WIFI,AP,STA_IP_ASSIGNED," IPSTR, IP2STR(&event->ip));
 }
 
 static void handle_got_ip6(void *arg, esp_event_base_t base, int32_t event_id, void *event_data) {
@@ -223,7 +223,7 @@ static void handle_got_ip6(void *arg, esp_event_base_t base, int32_t event_id, v
     }
     ESP_LOGI(TAG, "IP_EVENT_GOT_IP6: if: %s, ip: " IPV6STR, if_name, IPV62STR(event->ip6_info.ip));
 
-    uart_nmea("PESP,WIFI,%s,IP," IPV6STR, if_name, IPV62STR(event->ip6_info.ip));
+    uart_nmea("$PESP,WIFI,%s,IP," IPV6STR, if_name, IPV62STR(event->ip6_info.ip));
 
     xEventGroupSetBits(wifi_event_group, GOT_IPV6_BIT);
 }
@@ -304,12 +304,12 @@ void wifi_init() {
     ESP_ERROR_CHECK(esp_wifi_start());
 
     if (ap_enable) {
-        uart_nmea("PESP,WIFI,AP,SSID,%s,%s", wifi_config_ap.ap.ssid, ap_password_len == 0 ? "OPEN" : "PASSWORD");
+        uart_nmea("$PESP,WIFI,AP,SSID,%s,%s", wifi_config_ap.ap.ssid, ap_password_len == 0 ? "OPEN" : "PASSWORD");
         config_color_t ap_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_WIFI_AP_COLOR));
         if (ap_led_color.rgba != 0) status_led_ap = status_led_add(ap_led_color.rgba, STATUS_LED_STATIC, 250, 1000, 0);
     }
     if (sta_enable) {
-        uart_nmea("PESP,WIFI,STA,CONNECTING,%s,%s", wifi_config_sta.sta.ssid, sta_password_len == 0 ? "OPEN" : "PASSWORD");
+        uart_nmea("$PESP,WIFI,STA,CONNECTING,%s,%s", wifi_config_sta.sta.ssid, sta_password_len == 0 ? "OPEN" : "PASSWORD");
         config_color_t sta_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_WIFI_STA_COLOR));
         if (sta_led_color.rgba != 0) status_led_sta = status_led_add(sta_led_color.rgba, STATUS_LED_STATIC, 250, 1000, 0);
     }
