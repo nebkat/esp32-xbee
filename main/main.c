@@ -71,6 +71,7 @@ void app_main()
     esp_log_level_set("gpio", ESP_LOG_WARN);
     esp_log_level_set("system_api", ESP_LOG_WARN);
     esp_log_level_set("wifi", ESP_LOG_WARN);
+    esp_log_level_set("tcpip_adapter", ESP_LOG_WARN);
 
     uart_nmea("$PESP,INIT,START,%s", PROJECT_VER);
 
