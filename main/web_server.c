@@ -208,6 +208,25 @@ static esp_err_t file_get_handler(httpd_req_t *req) {
     return ESP_OK;
 }
 
+static esp_err_t json_response(httpd_req_t *req, cJSON *root) {
+    // Set mime type
+    esp_err_t err = httpd_resp_set_type(req, "application/json");
+    if (err != ESP_OK) return err;
+
+    // Convert to string
+    char *json = cJSON_Print(root);
+
+    // Send as response
+    err = httpd_resp_send(req, json, strlen(json));
+    if (err != ESP_OK) return err;
+
+    // Free resources
+    cJSON_Delete(root);
+    free(json);
+
+    return ESP_OK;
+}
+
 static esp_err_t config_get_handler(httpd_req_t *req) {
     cJSON *root = cJSON_CreateObject();
 
@@ -265,11 +284,7 @@ static esp_err_t config_get_handler(httpd_req_t *req) {
         free(string);
     }
 
-    char *json = cJSON_Print(root);
-    cJSON_Delete(root);
-    httpd_resp_send(req, json, strlen(json));
-    free(json);
-    return ESP_OK;
+    return json_response(req, root);
 }
 
 static esp_err_t config_post_handler(httpd_req_t *req) {
@@ -362,6 +377,50 @@ static esp_err_t config_post_handler(httpd_req_t *req) {
     return ESP_OK;
 }
 
+static esp_err_t wifi_status_get_handler(httpd_req_t *req) {
+    wifi_ap_status_t ap_status;
+    wifi_sta_status_t sta_status;
+
+    wifi_ap_status(&ap_status);
+    wifi_sta_status(&sta_status);
+
+    cJSON *root = cJSON_CreateObject();
+
+    cJSON *ap = cJSON_CreateObject();
+    cJSON_AddItemToObject(root, "ap", ap);
+
+    cJSON_AddBoolToObject(ap, "active", ap_status.active);
+    if (ap_status.active) {
+        cJSON_AddStringToObject(ap, "ssid", (char *) ap_status.ssid);
+        cJSON_AddStringToObject(ap, "authmode", wifi_auth_mode_name(ap_status.authmode));
+        cJSON_AddNumberToObject(ap, "devices", ap_status.devices);
+
+        char ip[40];
+        snprintf(ip, sizeof(ip), IPSTR, IP2STR(&ap_status.ip4_addr));
+        cJSON_AddStringToObject(ap, "ip4", ip);
+        snprintf(ip, sizeof(ip), IPV6STR, IPV62STR(ap_status.ip6_addr));
+        cJSON_AddStringToObject(ap, "ip6", ip);
+    }
+
+    cJSON *sta = cJSON_CreateObject();
+    cJSON_AddItemToObject(root, "sta", sta);
+
+    cJSON_AddBoolToObject(sta, "connected", sta_status.connected);
+    if (sta_status.connected) {
+        cJSON_AddStringToObject(sta, "ssid", (char *) sta_status.ssid);
+        cJSON_AddStringToObject(sta, "authmode", wifi_auth_mode_name(sta_status.authmode));
+        cJSON_AddNumberToObject(sta, "rssi", sta_status.rssi);
+
+        char ip[40];
+        snprintf(ip, sizeof(ip), IPSTR, IP2STR(&sta_status.ip4_addr));
+        cJSON_AddStringToObject(sta, "ip4", ip);
+        snprintf(ip, sizeof(ip), IPV6STR, IPV62STR(sta_status.ip6_addr));
+        cJSON_AddStringToObject(sta, "ip6", ip);
+    }
+
+    return json_response(req, root);
+}
+
 static esp_err_t wifi_scan_get_handler(httpd_req_t *req) {
     uint16_t ap_count;
     wifi_ap_record_t *ap_records =  wifi_scan(&ap_count);
@@ -373,18 +432,22 @@ static esp_err_t wifi_scan_get_handler(httpd_req_t *req) {
         cJSON_AddItemToArray(root, ap);
         cJSON_AddStringToObject(ap, "ssid", (char *) ap_record->ssid);
         cJSON_AddNumberToObject(ap, "rssi", ap_record->rssi);
-
-        char *auth_mode = wifi_auth_mode_name(ap_record->authmode);
-        cJSON_AddStringToObject(ap, "authmode", auth_mode);
+        cJSON_AddStringToObject(ap, "authmode", wifi_auth_mode_name(ap_record->authmode));
     }
 
     free(ap_records);
 
-    char *json = cJSON_PrintUnformatted(root);
-    cJSON_Delete(root);
-    httpd_resp_send(req, json, strlen(json));
-    free(json);
-    return ESP_OK;
+    return json_response(req, root);
+}
+
+static esp_err_t register_uri_handler(httpd_handle_t server, const char *path, httpd_method_t method, esp_err_t (*handler)(httpd_req_t *r), void *user_ctx) {
+    httpd_uri_t uri_config_get = {
+            .uri        = path,
+            .method     = method,
+            .handler    = handler,
+            .user_ctx   = user_ctx
+    };
+    return httpd_register_uri_handler(server, &uri_config_get);
 }
 
 static httpd_handle_t web_server_start(void)
@@ -400,40 +463,15 @@ static httpd_handle_t web_server_start(void)
         // Set URI handlers
         ESP_LOGI(TAG, "Registering URI handlers");
 
-        httpd_uri_t uri_config_get = {
-                .uri        = "/config",
-                .method     = HTTP_GET,
-                .handler    = config_get_handler
-        };
-        httpd_register_uri_handler(server, &uri_config_get);
+        register_uri_handler(server, "/config", HTTP_GET, config_get_handler, NULL);
+        register_uri_handler(server, "/config", HTTP_POST, config_post_handler, NULL);
 
-        httpd_uri_t uri_config_post = {
-                .uri        = "/config",
-                .method     = HTTP_POST,
-                .handler    = config_post_handler
-        };
-        httpd_register_uri_handler(server, &uri_config_post);
+        register_uri_handler(server, "/log", HTTP_GET, log_get_handler, NULL);
 
-        httpd_uri_t uri_log_get = {
-                .uri        = "/log",
-                .method     = HTTP_GET,
-                .handler    = log_get_handler
-        };
-        httpd_register_uri_handler(server, &uri_log_get);
+        register_uri_handler(server, "/wifi/status", HTTP_GET, wifi_status_get_handler, NULL);
+        register_uri_handler(server, "/wifi/scan", HTTP_GET, wifi_scan_get_handler, NULL);
 
-        httpd_uri_t uri_wifi_scan_get = {
-                .uri        = "/wifi/scan",
-                .method     = HTTP_GET,
-                .handler    = wifi_scan_get_handler
-        };
-        httpd_register_uri_handler(server, &uri_wifi_scan_get);
-
-        httpd_uri_t uri_file_get = {
-                .uri        = "/*",
-                .method     = HTTP_GET,
-                .handler    = file_get_handler
-        };
-        httpd_register_uri_handler(server, &uri_file_get);
+        register_uri_handler(server, "/*", HTTP_GET, file_get_handler, NULL);
     }
 
     if (server == NULL) {

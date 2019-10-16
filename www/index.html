@@ -52,17 +52,18 @@
             return o;
         };
 
-        $(function() {
 
+        $(function() {
             var form = $("#form");
 
             form.on('submit', function(e) {
                 e.preventDefault();
 
+                if (!form[0].checkValidity()) {
+                    form.find(':submit').click();
+                }
 
-                $.post('config', JSON.stringify($(this).serializeObject()), function() {
-
-                });
+                $.post('config', JSON.stringify($(this).serializeObject()));
             });
 
             form.find("input[type='checkbox']").each(function() {
@@ -81,7 +82,10 @@
 
             var checkDisableIfs = function() {
                 form.find("[data-disable-if]").each(function() {
-                    var disabled = form.find($(this).data('disable-if')).length > 0;
+                    var condition = $(this).data('disable-if-condition');
+                    if (typeof condition === 'undefined') condition = ':not(:checked)';
+                    console.log(condition);
+                    var disabled = form.find($(this).data('disable-if')).filter(condition).length > 0;
                     $(this).attr('disabled', disabled);
                     if (disabled) {
                         $(this).addClass('disabled');
@@ -121,6 +125,44 @@
                 checkDisableIfs();
             });
 
+            var wifiRssiColorClass = function(rssi) {
+                if (rssi > -50) {
+                    return 'primary';
+                } else if (rssi > -60) {
+                    return 'success';
+                } else if (rssi > -70) {
+                    return 'warning';
+                } else {
+                    return 'danger';
+                }
+            }
+
+            var wifiApStatusText = form.find('.wifi-ap-status');
+            var wifiStaStatusText = form.find('.wifi-sta-status');
+
+            var wifiStatusUpdate = function() {
+                $.getJSON('wifi/status').done(function(data) {
+                    wifiApStatusText.empty();
+                    wifiStaStatusText.empty();
+
+                    if (!data.ap.active) {
+                        wifiApStatusText.text("Disabled");
+                    } else {
+                        wifiApStatusText.text(data.ap.ssid + (data.ap.authmode == 'OPEN' && false ? " (OPEN)" : '') + " / " + data.ap.ip4 + " / " + data.ap.devices + " device" + (data.ap.devices != 1 ? "s" : ''));
+                    }
+
+                    if (!data.sta.connected) {
+                        wifiStaStatusText.text("Not Connected");
+                    } else {
+                        wifiStaStatusText.text(data.sta.ssid + (data.sta.authmode == 'OPEN' ? " (OPEN)" : '') + " / " + data.sta.ip4 + " / ");
+                        wifiStaStatusText.append($('<span class="text-' + wifiRssiColorClass(data.sta.rssi) + '"></span>').text(data.sta.rssi + "dBm"));
+                    }
+                }).always(function() {
+                    setTimeout(wifiStatusUpdate, 2500);
+                });
+            };
+            wifiStatusUpdate();
+
             var wifiNetworksScanButton = form.find('.wifi-networks-scan');
             var wifiNetworksDropdownButton = form.find('.wifi-networks-dropdown');
             var wifiNetworksList = form.find('.wifi-networks');
@@ -146,18 +188,9 @@
                         entry.data('rssi', network.rssi);
                         entry.data('authmode', network.authmode);
                         entry.data('open', open);
-                        entry.text(network.ssid + (open ? '' : " (" + network.authmode + ")"));
 
-                        var rssiTextClass = 'danger';
-                        if (network.rssi > -50) {
-                            rssiTextClass = 'primary';
-                        } else if (network.rssi > -60) {
-                            rssiTextClass = 'success';
-                        } else if (network.rssi > -70) {
-                            rssiTextClass = 'warning';
-                        }
-
-                        entry.append(' <span class="text-' + rssiTextClass + '">' + network.rssi + 'dBm</span>');
+                        entry.text(network.ssid + (open ? '' : " (" + network.authmode + ") "));
+                        entry.append($('<span class="text-' + wifiRssiColorClass(network.rssi) + '"></span>').text(network.rssi + "dBm"));
 
                         entry.appendTo(open ? wifiNetworksOpenList : wifiNetworksSecuredList);
                     });
@@ -210,7 +243,7 @@
             <h2>ESP32 XBee Configuration</h2>
             <p class="lead">Adjust the settings below and then click on "Save All" at the bottom of the page. The device will restart with the new settings applied. If you have adjusted WiFi settings the device may be moved onto a new IP address, or require you to reconnect to its access point.</p>
         </div>
-        <form class="needs-validation" id="form" novalidate>
+        <form class="needs-validation" id="form">
             <div class="row mb-5">
                 <div class="col-xl-6">
                     <div class="card mb-3">
@@ -224,107 +257,21 @@
                                     <select name="admin_auth_method" class="custom-select">
                                         <option value="0" selected>Open (dangerous)</option>
                                         <option value="1">Button press</option>
-                                        <option value="2">Access point devices only</option>
+                                        <option value="2">Hotspot devices only</option>
                                         <option value="3">Username/password</option>
                                     </select>
                                 </div>
                                 <div class="col-4">
                                     <label>Username</label>
-                                    <input type="text" name="admin_username" data-disable-if="select[name='admin_auth_method'] > option[value!='3']:selected" class="form-control" maxlength="32"/>
+                                    <input type="text" name="admin_username" data-disable-if="select[name='admin_auth_method'] > option[value!='3']" data-disable-if-condition=":selected" class="form-control" maxlength="32"/>
                                 </div>
                                 <div class="col-4">
                                     <label>Password</label>
-                                    <input type="password" name="admin_password" data-disable-if="select[name='admin_auth_method'] > option[value!='3']:selected" class="form-control" maxlength="64"/>
+                                    <input type="password" name="admin_password" data-disable-if="select[name='admin_auth_method'] > option[value!='3']" data-disable-if-condition=":selected" class="form-control" maxlength="64"/>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <div data-disable-if="input[type='checkbox'][name='w_ap_active']:not(:checked)" class="card mb-3">
-                        <div class="card-header">
-                            WiFi access point (hotspot)
-                            <div class="custom-control custom-switch d-inline float-right active">
-                                <input type="checkbox" name="w_ap_active" value="1" checked class="custom-control-input" id="switch-wifi-ap">
-                                <label class="custom-control-label" for="switch-wifi-ap"></label>
-                            </div>
-                            <div class="d-inline mr-1 float-right">
-                                <input type="color" name="w_ap_color" data-disable-if="input[type='checkbox'][name='w_ap_active']:not(:checked)" value="#ffffff" id="color-wifi-ap">
-                            </div>
-                        </div>
-                        <div class="card-body">
-                            <div class="form-row mb-3">
-                                <div class="col-6">
-                                    <label>SSID</label>
-                                    <div class="input-group">
-                                        <input type="text" name="w_ap_ssid" class="form-control" maxlength="32">
-                                        <div class="input-group-append btn-group-toggle" data-toggle="buttons">
-                                            <label class="btn btn-outline-secondary">
-                                                <input type="checkbox" name="w_ap_ssid_hid" value="1"> Hidden
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-6">
-                                    <label>Password</label>
-                                    <div class="input-group">
-                                        <input type="password" name="w_ap_pass" data-disable-if="select[name='w_ap_auth_mode'] > option[value='0']:selected" class="form-control">
-                                        <select name="w_ap_auth_mode" class="custom-select">
-                                            <option value="0" selected>Open</option>
-                                            <option value="1">WEP</option>
-                                            <option value="2">WPA-PSK</option>
-                                            <option value="3">WPA2-PSK</option>
-                                            <option value="4">WPA/2-PSK (recommended)</option>
-                                            <option value="4">WPA2 Enterprise</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div data-disable-if="input[type='checkbox'][name='w_sta_active']:not(:checked)" class="card mb-3">
-                        <div class="card-header">
-                            WiFi
-                            <div class="custom-control custom-switch d-inline float-right">
-                                <input type="checkbox" name="w_sta_active" value="1" checked class="custom-control-input" id="switch-wifi-sta">
-                                <label class="custom-control-label" for="switch-wifi-sta"></label>
-                            </div>
-                            <div class="d-inline mr-1 float-right">
-                                <input type="color" name="w_sta_color" data-disable-if="input[type='checkbox'][name='w_ap_active']:not(:checked)" value="#ffffff" id="color-wifi-sta">
-                            </div>
-                        </div>
-                        <div class="card-body">
-                            <div class="form-row mb-3">
-                                <div class="col-8">
-                                    <label>SSID</label>
-                                    <div class="input-group">
-                                        <input type="text" name="w_sta_ssid" class="wifi-networks-ssid form-control" maxlength="32" required>
-                                        <div class="input-group-append">
-                                            <button type="button" class="wifi-networks-dropdown btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" data-toggle="dropdown" disabled></button>
-                                            <div class="wifi-networks dropdown-menu">
-                                                <h6 class="dropdown-header">Open networks</h6>
-                                                <span class="wifi-networks-open">
-                                                </span>
-                                                <h6 class="dropdown-header">Secured networks</h6>
-                                                <span class="wifi-networks-secured">
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div class="input-group-append">
-                                            <button type="button" class="wifi-networks-scan btn btn-outline-secondary">Scan</button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col">
-                                    <label>Password</label>
-                                    <div class="input-group">
-                                        <input type="password" name="w_sta_pass" class="wifi-networks-pass form-control">
-                                        <input type="hidden" name="w_sta_pass" class="wifi-networks-pass-empty" value="" disabled>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-xl-6">
                     <div class="card mb-3">
                         <div class="card-header">
                             UART (main communication)
@@ -369,7 +316,7 @@
                                             <option value="921600">921600</option>
                                         </select>
                                         <div class="input-group-append">
-                                            <span class="input-group-text">baud</span>
+                                            <span class="input-group-text px-2">baud</span>
                                         </div>
                                     </div>
                                 </div>
@@ -383,7 +330,7 @@
                                             <option value="3" selected>8</option>
                                         </select>
                                         <div class="input-group-append">
-                                            <span class="input-group-text">bits</span>
+                                            <span class="input-group-text px-2">bits</span>
                                         </div>
                                     </div>
                                 </div>
@@ -396,13 +343,13 @@
                                             <option value="3">2</option>
                                         </select>
                                         <div class="input-group-append">
-                                            <span class="input-group-text">bits</span>
+                                            <span class="input-group-text px-2">bits</span>
                                         </div>
                                     </div>
                                 </div>
                                 <div class="col-md col-6">
                                     <label>Parity</label>
-                                    <select name="uart_parity" class="custom-select" required>
+                                    <select name="uart_parity" class="custom-select px-2" required>
                                         <option value="0" selected>Disabled</option>
                                         <option value="2">Even</option>
                                         <option value="3">Odd</option>
@@ -431,16 +378,17 @@
                                 </div>
                                 <div class="col">
                                     <label>RTS pin</label>
-                                    <input type="number" name="uart_rts_pin" data-disable-if="input[type='checkbox'][name='uart_fc_rts']:not(:checked)" class="form-control" placeholder="22" value="22" required>
+                                    <input type="number" name="uart_rts_pin" data-disable-if="input[type='checkbox'][name='uart_fc_rts']" class="form-control" placeholder="22" value="22" required>
                                 </div>
                                 <div class="col">
                                     <label>CTS pin</label>
-                                    <input type="number" name="uart_cts_pin" data-disable-if="input[type='checkbox'][name='uart_fc_cts']:not(:checked)" class="form-control" placeholder="19" value="19" required>
+                                    <input type="number" name="uart_cts_pin" data-disable-if="input[type='checkbox'][name='uart_fc_cts']" class="form-control" placeholder="19" value="19" required>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <div data-disable-if="input[type='checkbox'][name='bt_active']:not(:checked)" class="card mb-3">
+                    <!--
+                    <div data-disable-if="input[type='checkbox'][name='bt_active']" class="card mb-3">
                         <div class="card-header">
                             Bluetooth
                             <div class="custom-control custom-switch d-inline float-right">
@@ -473,6 +421,137 @@
                             </div>
                         </div>
                     </div>
+                    -->
+                </div>
+                <div class="col-xl-6">
+                    <div data-disable-if="#switch-wifi-ap" class="card mb-3">
+                        <div class="card-header">
+                            WiFi hotspot
+                            <small class="wifi-ap-status"></small>
+                            <div class="custom-control custom-switch d-inline float-right active">
+                                <input type="checkbox" name="w_ap_active" value="1" checked class="custom-control-input" id="switch-wifi-ap">
+                                <label class="custom-control-label" for="switch-wifi-ap"></label>
+                            </div>
+                            <div class="d-inline mr-1 float-right">
+                                <input type="color" name="w_ap_color" data-disable-if="#switch-wifi-ap" value="#ffffff" id="color-wifi-ap">
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-row mb-3">
+                                <div class="col-6">
+                                    <label>SSID</label>
+                                    <div class="input-group">
+                                        <input type="text" name="w_ap_ssid" class="form-control" maxlength="32">
+                                        <div class="input-group-append btn-group-toggle" data-toggle="buttons">
+                                            <label class="btn btn-outline-secondary">
+                                                <input type="checkbox" name="w_ap_ssid_hid" value="1"> Hidden
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <label>Password</label>
+                                    <div class="input-group">
+                                        <input type="password" name="w_ap_pass" data-disable-if="select[name='w_ap_auth_mode'] > option[value='0']" data-disable-if-condition=":selected" class="form-control">
+                                        <select name="w_ap_auth_mode" class="custom-select">
+                                            <option value="0" selected>Open</option>
+                                            <option value="1">WEP</option>
+                                            <option value="2">WPA-PSK</option>
+                                            <option value="3">WPA2-PSK</option>
+                                            <option value="4">WPA/2-PSK (recommended)</option>
+                                            <option value="4">WPA2 Enterprise</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-row mb-3">
+                                <div class="col-6">
+                                    <label>Gateway and subnet</label>
+                                    <div class="input-group">
+                                        <div class="input-group-prepend">
+                                            <span class="input-group-text px-1">192.168.</span>
+                                        </div>
+                                        <input type="hidden" name="w_ap_ip_1" value="192">
+                                        <input type="hidden" name="w_ap_ip_2" value="168">
+                                        <input type="number" name="w_ap_ip_3" value="4" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">.</span>
+                                        </div>
+                                        <input type="number" name="w_ap_ip_4" value="1" maxlength="3" min="1" max="254" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">/</span>
+                                        </div>
+                                        <select name="w_ap_ip_sub" class="custom-select px-2" required>
+                                            <option value="24" selected>24</option>
+                                            <option value="25">25</option>
+                                            <option value="26">26</option>
+                                            <option value="27">27</option>
+                                            <option value="28">28</option>
+                                            <option value="29">29</option>
+                                            <option value="30">30</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <label>Min/max IP</label>
+                                    <div class="input-group">
+                                        <div class="input-group-prepend">
+                                            <span class="input-group-text">192.168.255.</span>
+                                        </div>
+                                        <input type="number" name="w_ap_ip_min" value="253" disabled class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text">-</span>
+                                        </div>
+                                        <input type="number" name="w_ap_ip_max" value="254" disabled class="form-control text-center px-1">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div data-disable-if="#switch-wifi-sta" class="card mb-3">
+                        <div class="card-header">
+                            WiFi
+                            <small class="wifi-sta-status"></small>
+                            <div class="custom-control custom-switch d-inline float-right">
+                                <input type="checkbox" name="w_sta_active" value="1" checked class="custom-control-input" id="switch-wifi-sta">
+                                <label class="custom-control-label" for="switch-wifi-sta"></label>
+                            </div>
+                            <div class="d-inline mr-1 float-right">
+                                <input type="color" name="w_sta_color" data-disable-if="#switch-wifi-sta" value="#ffffff" id="color-wifi-sta">
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-row mb-3">
+                                <div class="col-8">
+                                    <label>SSID</label>
+                                    <div class="input-group">
+                                        <input type="text" name="w_sta_ssid" class="wifi-networks-ssid form-control" maxlength="32" required>
+                                        <div class="input-group-append">
+                                            <button type="button" class="wifi-networks-dropdown btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" data-toggle="dropdown" disabled></button>
+                                            <div class="wifi-networks dropdown-menu">
+                                                <h6 class="dropdown-header">Open networks</h6>
+                                                <span class="wifi-networks-open">
+                                                </span>
+                                                <h6 class="dropdown-header">Secured networks</h6>
+                                                <span class="wifi-networks-secured">
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div class="input-group-append">
+                                            <button type="button" class="wifi-networks-scan btn btn-outline-secondary">Scan</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <label>Password</label>
+                                    <div class="input-group">
+                                        <input type="password" name="w_sta_pass" class="wifi-networks-pass form-control">
+                                        <input type="hidden" name="w_sta_pass" class="wifi-networks-pass-empty" value="" disabled>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="row mb-5">
@@ -482,11 +561,11 @@
             </div>
             <div class="row">
                 <div class="col-xl-6">
-                    <div data-disable-if="input[type='checkbox'][name='ntr_cli_active']:not(:checked)" class="card mb-3">
+                    <div data-disable-if="#switch-ntrip-client" class="card mb-3">
                         <div class="card-header">
                             NTRIP client
-                            <div class="custom-control custom-switch d-inline float-right active">
-                                <input type="checkbox" name="ntr_cli_active" value="1" checked class="custom-control-input" id="switch-ntrip-client">
+                            <div class="custom-control custom-switch d-inline float-right">
+                                <input type="checkbox" name="ntr_cli_active" value="1" class="custom-control-input" id="switch-ntrip-client">
                                 <label class="custom-control-label" for="switch-ntrip-client"></label>
                             </div>
                         </div>
@@ -538,11 +617,11 @@
                             </div>
                         </div>
                     </div>
-                    <div data-disable-if="input[type='checkbox'][name='ntr_srv_active']:not(:checked)" class="card mb-3">
+                    <div data-disable-if="#switch-ntrip-server" class="card mb-3">
                         <div class="card-header">
                             NTRIP server
-                            <div class="custom-control custom-switch d-inline float-right active">
-                                <input type="checkbox" name="ntr_srv_active" value="1" checked class="custom-control-input" id="switch-ntrip-server">
+                            <div class="custom-control custom-switch d-inline float-right">
+                                <input type="checkbox" name="ntr_srv_active" value="1" class="custom-control-input" id="switch-ntrip-server">
                                 <label class="custom-control-label" for="switch-ntrip-server"></label>
                             </div>
                         </div>
@@ -594,11 +673,11 @@
                             </div>
                         </div>
                     </div>
-                    <div data-disable-if="input[type='checkbox'][name='ntr_cst_active']:not(:checked)" class="card mb-3">
+                    <div data-disable-if="#switch-ntrip-caster" class="card mb-3">
                         <div class="card-header">
                             NTRIP caster
-                            <div class="custom-control custom-switch d-inline float-right active">
-                                <input type="checkbox" name="ntr_cst_active" value="1" checked class="custom-control-input" id="switch-ntrip-caster">
+                            <div class="custom-control custom-switch d-inline float-right">
+                                <input type="checkbox" name="ntr_cst_active" value="1" class="custom-control-input" id="switch-ntrip-caster">
                                 <label class="custom-control-label" for="switch-ntrip-caster"></label>
                             </div>
                         </div>
@@ -633,10 +712,10 @@
                     </div>
                 </div>
                 <div class="col-xl-6">
-                    <div data-disable-if="input[type='checkbox'][name='sck_srv_active']:not(:checked)" class="card mb-3">
+                    <div data-disable-if="#switch-socket-server" class="card mb-3">
                         <div class="card-header">
                             Sockets
-                            <div class="custom-control custom-switch d-inline float-right active">
+                            <div class="custom-control custom-switch d-inline float-right">
                                 <input type="checkbox" name="sck_srv_active" value="1" class="custom-control-input" id="switch-socket-server">
                                 <label class="custom-control-label" for="switch-socket-server"></label>
                             </div>

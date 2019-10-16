@@ -184,9 +184,9 @@ static void handle_sta_got_ip(void *arg, esp_event_base_t base, int32_t event_id
             IP2STR(&event->ip_info.netmask),
             IP2STR(&event->ip_info.gw));
 
-    uart_nmea("PESP,WIFI,STA,IP," IPSTR "," IPSTR "," IPSTR,
+    uart_nmea("PESP,WIFI,STA,IP," IPSTR "/%d," IPSTR,
             IP2STR(&event->ip_info.ip),
-            IP2STR(&event->ip_info.netmask),
+            ffs(~event->ip_info.netmask.addr) - 1,
             IP2STR(&event->ip_info.gw));
 
     xEventGroupSetBits(wifi_event_group, GOT_IPV4_BIT);
@@ -306,13 +306,57 @@ void wifi_init() {
     if (ap_enable) {
         uart_nmea("PESP,WIFI,AP,SSID,%s,%s", wifi_config_ap.ap.ssid, ap_password_len == 0 ? "OPEN" : "PASSWORD");
         config_color_t ap_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_WIFI_AP_COLOR));
-        if (ap_led_color.rgba != 0) status_led_ap = status_led_add(ap_led_color.rgba, STATUS_LED_STATIC, 250, 2500, 0);
+        if (ap_led_color.rgba != 0) status_led_ap = status_led_add(ap_led_color.rgba, STATUS_LED_STATIC, 250, 1000, 0);
     }
     if (sta_enable) {
         uart_nmea("PESP,WIFI,STA,CONNECTING,%s,%s", wifi_config_sta.sta.ssid, sta_password_len == 0 ? "OPEN" : "PASSWORD");
         config_color_t sta_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_WIFI_STA_COLOR));
-        if (sta_led_color.rgba != 0) status_led_sta = status_led_add(sta_led_color.rgba, STATUS_LED_STATIC, 250, 2500, 0);
+        if (sta_led_color.rgba != 0) status_led_sta = status_led_add(sta_led_color.rgba, STATUS_LED_STATIC, 250, 1000, 0);
     }
+}
+
+void wifi_ap_status(wifi_ap_status_t *status) {
+    wifi_mode_t wifi_mode;
+    esp_wifi_get_mode(&wifi_mode);
+
+    status->active = wifi_mode == WIFI_MODE_AP || wifi_mode == WIFI_MODE_APSTA;
+
+    if (!status->active) return;
+
+    wifi_config_t wifi_config;
+    esp_wifi_get_config(WIFI_IF_AP, &wifi_config);
+
+    memcpy(status->ssid, wifi_config.ap.ssid, sizeof(wifi_config.ap.ssid));
+    status->authmode = wifi_config.ap.authmode;
+
+    wifi_sta_list_t ap_sta_list;
+    esp_wifi_ap_get_sta_list(&ap_sta_list);
+    status->devices = ap_sta_list.num;
+
+    tcpip_adapter_ip_info_t ip_info;
+    tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_AP, &ip_info);
+    status->ip4_addr = ip_info.ip;
+
+    tcpip_adapter_get_ip6_linklocal(TCPIP_ADAPTER_IF_AP, &status->ip6_addr);
+}
+
+void wifi_sta_status(wifi_sta_status_t *status) {
+    status->connected = false;
+
+    wifi_ap_record_t ap_record;
+    if (esp_wifi_sta_get_ap_info(&ap_record) != ESP_OK) return;
+
+    status->connected = true;
+
+    memcpy(status->ssid, ap_record.ssid, sizeof(ap_record.ssid));
+    status->rssi = ap_record.rssi;
+    status->authmode = ap_record.authmode;
+
+    tcpip_adapter_ip_info_t ip_info;
+    tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip_info);
+    status->ip4_addr = ip_info.ip;
+
+    tcpip_adapter_get_ip6_linklocal(TCPIP_ADAPTER_IF_STA, &status->ip6_addr);
 }
 
 wifi_ap_record_t *wifi_scan(uint16_t *number) {
@@ -331,12 +375,9 @@ wifi_ap_record_t *wifi_scan(uint16_t *number) {
             .show_hidden = 0
     };
 
-    ESP_LOGI(TAG, "Scan starting");
-
     esp_wifi_scan_start(&wifi_scan_config, true);
 
     esp_wifi_scan_get_ap_num(number);
-    ESP_LOGI(TAG, "Scan complete %d found", *number);
     if (*number <= 0) {
         return NULL;
     }
