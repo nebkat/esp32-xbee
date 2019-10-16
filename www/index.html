@@ -58,15 +58,17 @@
 
             form.on('submit', function(e) {
                 e.preventDefault();
+                e.stopPropagation();
 
-                if (form[0].checkValidity() === false) {
-                    e.preventDefault();
-                    e.stopPropagation();
+                if (form[0].checkValidity() !== false) {
+                    var submit = form.find(':submit').prop('disabled', true);
+                    $.post('config', JSON.stringify($(this).serializeObject()))
+                            .always(function() {
+                                submit.prop('disabled', false);
+                            });
                 }
 
                 form.addClass('was-validated');
-
-                $.post('config', JSON.stringify($(this).serializeObject()));
             });
 
             form.find("input[type='checkbox']").each(function() {
