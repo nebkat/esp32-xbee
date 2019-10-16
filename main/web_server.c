@@ -374,9 +374,14 @@ static esp_err_t config_post_handler(httpd_req_t *req) {
         }
     }
 
+    cJSON_Delete(root);
+
     config_commit();
 
-    return ESP_OK;
+    root = cJSON_CreateObject();
+    cJSON_AddBoolToObject(root, "success", true);
+
+    return json_response(req, root);
 }
 
 static esp_err_t wifi_status_get_handler(httpd_req_t *req) {
