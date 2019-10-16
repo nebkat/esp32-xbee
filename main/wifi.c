@@ -229,7 +229,7 @@ static void handle_got_ip6(void *arg, esp_event_base_t base, int32_t event_id, v
 }
 
 void wait_for_ip() {
-    xEventGroupWaitBits(wifi_event_group, GOT_IPV4_BIT | GOT_IPV6_BIT, false, true, portMAX_DELAY);
+    xEventGroupWaitBits(wifi_event_group, GOT_IPV4_BIT | GOT_IPV6_BIT, false, false, portMAX_DELAY);
 }
 
 void wifi_init() {
