@@ -118,10 +118,7 @@
             form.find(":input").on('change', checkDisableIfs);
 
             $.getJSON('config').done(function(data) {
-                for (var key in data) {
-                    if (!data.hasOwnProperty(key)) continue;
-                    var value = data[key];
-                }
+                $('#project-version').text(data.version);
 
                 form.find(':input').each(function() {
                     if (!this.name || typeof data[this.name] === 'undefined') return;
@@ -287,7 +284,8 @@
 <body class="bg-light">
     <div class="container">
         <div class="pt-5 text-center">
-            <h2>ESP32 XBee Configuration</h2>
+            <h2>ESP32 XBee Config <small id="project-version" class="text-muted"></small></h2>
+
             <p class="lead">Adjust the settings below and then click on "Save All" at the bottom of the page. The device will restart with the new settings applied. If you have adjusted WiFi settings the device may be moved onto a new IP address, or require you to reconnect to its access point.</p>
         </div>
         <form class="needs-validation" id="form" novalidate>
