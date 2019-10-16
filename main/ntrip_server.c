@@ -22,6 +22,7 @@
 #include <sys/socket.h>
 #include <wifi.h>
 #include <tasks.h>
+#include <ntrip_util.h>
 #include "ntrip.h"
 #include "config.h"
 #include "util.h"
@@ -42,10 +43,6 @@ static void ntrip_server_uart_handler(void* handler_args, esp_event_base_t base,
     if (sent < 0) destroy_socket(&socket_server);
 
     server_keep_alive = 0;
-}
-
-static bool ntrip_response_ok(void *response) {
-    return strstr(response, "OK") == response || strstr(response, "ICY 200 OK") == response;
 }
 
 void ntrip_server_task(void *ctx) {
