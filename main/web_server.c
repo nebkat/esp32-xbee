@@ -230,6 +230,8 @@ static esp_err_t json_response(httpd_req_t *req, cJSON *root) {
 static esp_err_t config_get_handler(httpd_req_t *req) {
     cJSON *root = cJSON_CreateObject();
 
+    cJSON_AddStringToObject(root, "version", PROJECT_VER);
+
     int config_item_count;
     const config_item_t *config_items = config_items_get(&config_item_count);
     for (int i = 0; i < config_item_count; i++) {
