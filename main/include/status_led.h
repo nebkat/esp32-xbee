@@ -29,4 +29,11 @@ status_led_handle_t status_led_add(uint32_t rgba, status_led_flashing_mode_t fla
 void status_led_remove(status_led_handle_t color);
 void status_led_init();
 
+void rssi_led_set(uint8_t value);
+void rssi_led_fade(uint8_t value, int max_fade_time_ms);
+void assoc_led_set(uint8_t value);
+void assoc_led_fade(uint8_t value, int max_fade_time_ms);
+void sleep_led_set(uint8_t value);
+void sleep_led_fade(uint8_t value, int max_fade_time_ms);
+
 #endif //ESP32_XBEE_STATUS_LED_H

@@ -30,7 +30,18 @@
 #define STATUS_LED_RED_GPIO GPIO_NUM_21
 #define STATUS_LED_GREEN_GPIO GPIO_NUM_22
 #define STATUS_LED_BLUE_GPIO GPIO_NUM_23
-#define STATUS_LED_FREQUENCY 10000
+#define STATUS_LED_RED_CHANNEL LEDC_CHANNEL_0
+#define STATUS_LED_GREEN_CHANNEL LEDC_CHANNEL_1
+#define STATUS_LED_BLUE_CHANNEL LEDC_CHANNEL_2
+
+#define STATUS_LED_RSSI_GPIO GPIO_NUM_18
+#define STATUS_LED_SLEEP_GPIO GPIO_NUM_27
+#define STATUS_LED_ASSOC_GPIO GPIO_NUM_25
+#define STATUS_LED_RSSI_CHANNEL LEDC_CHANNEL_3
+#define STATUS_LED_SLEEP_CHANNEL LEDC_CHANNEL_4
+#define STATUS_LED_ASSOC_CHANNEL LEDC_CHANNEL_5
+
+#define STATUS_LED_FREQ 1000
 
 status_led_handle_t colors;
 SemaphoreHandle_t colors_semaphore;
@@ -72,61 +83,52 @@ void status_led_remove(status_led_handle_t color) {
     color->remove = true;
 }
 
+static void status_led_channel_set(ledc_channel_t channel, uint8_t value) {
+    ledc_set_duty(LEDC_SPEED_MODE, channel, value);
+    ledc_update_duty(LEDC_SPEED_MODE, channel);
+}
+
+static void status_led_set(uint8_t red, uint8_t green, uint8_t blue) {
+    status_led_channel_set(STATUS_LED_RED_CHANNEL, 0xFF - red);
+    status_led_channel_set(STATUS_LED_GREEN_CHANNEL, 0xFF - green);
+    status_led_channel_set(STATUS_LED_BLUE_CHANNEL, 0xFF - blue);
+}
+
+static void status_led_channel_fade(ledc_channel_t channel, uint8_t value, int max_fade_time_ms) {
+    ledc_set_fade_with_time(LEDC_SPEED_MODE, channel, value, max_fade_time_ms);
+    ledc_fade_start(LEDC_SPEED_MODE, channel, LEDC_FADE_NO_WAIT);
+}
+
+static void status_led_fade(uint8_t red, uint8_t green, uint8_t blue, int max_fade_time_ms) {
+    status_led_channel_fade(STATUS_LED_RED_CHANNEL, 0xFF - red, max_fade_time_ms);
+    status_led_channel_fade(STATUS_LED_GREEN_CHANNEL, 0xFF - green, max_fade_time_ms);
+    status_led_channel_fade(STATUS_LED_BLUE_CHANNEL, 0xFF - blue, max_fade_time_ms);
+}
+
 static void status_led_show(status_led_handle_t color) {
-    switch (color->flashing_mode) {
-        case STATUS_LED_STATIC: {
-            ledc_set_duty(LEDC_SPEED_MODE, LEDC_CHANNEL_0, 0xFF - color->red);
-            ledc_set_duty(LEDC_SPEED_MODE, LEDC_CHANNEL_1, 0xFF - color->green);
-            ledc_set_duty(LEDC_SPEED_MODE, LEDC_CHANNEL_2, 0xFF - color->blue);
-            ledc_update_duty(LEDC_SPEED_MODE, LEDC_CHANNEL_0);
-            ledc_update_duty(LEDC_SPEED_MODE, LEDC_CHANNEL_1);
-            ledc_update_duty(LEDC_SPEED_MODE, LEDC_CHANNEL_2);
+    if (color->flashing_mode == STATUS_LED_STATIC) {
+        status_led_set(color->red, color->green, color->blue);
 
-            vTaskDelay(pdMS_TO_TICKS(color->duration));
-            break;
-        }
-        case STATUS_LED_FADE: {
-            bool active = true;
-            for (unsigned int i = 0; i < color->duration / color->interval; i++) {
-                ledc_set_fade_with_time(LEDC_SPEED_MODE, LEDC_CHANNEL_0, 0xFF - (active ? color->red : 0), color->interval / 2);
-                ledc_set_fade_with_time(LEDC_SPEED_MODE, LEDC_CHANNEL_1, 0xFF - (active ? color->green : 0), color->interval / 2);
-                ledc_set_fade_with_time(LEDC_SPEED_MODE, LEDC_CHANNEL_2, 0xFF - (active ? color->blue : 0), color->interval / 2);
-                ledc_fade_start(LEDC_SPEED_MODE, LEDC_CHANNEL_0, LEDC_FADE_NO_WAIT);
-                ledc_fade_start(LEDC_SPEED_MODE, LEDC_CHANNEL_1, LEDC_FADE_NO_WAIT);
-                ledc_fade_start(LEDC_SPEED_MODE, LEDC_CHANNEL_2, LEDC_FADE_NO_WAIT);
-
-                vTaskDelay(pdMS_TO_TICKS(color->interval));
-
-                active = !active;
+        vTaskDelay(pdMS_TO_TICKS(color->duration));
+    } else {
+        bool fade = color->flashing_mode == STATUS_LED_FADE;
+        bool active = true;
+        for (unsigned int i = 0; i < color->duration / color->interval; i++, active = !active) {
+            uint8_t red = active ? color->red : 0;
+            uint8_t green = active ? color->green : 0;
+            uint8_t blue = active ? color->blue : 0;
+            if (fade) {
+                status_led_fade(red, green, blue, color->interval / 2);
+            } else {
+                status_led_set(red, green, blue);
             }
-            break;
-        }
 
-        case STATUS_LED_BLINK: {
-            bool active = true;
-            for (unsigned int i = 0; i < color->duration / color->interval; i++) {
-                ledc_set_duty(LEDC_SPEED_MODE, LEDC_CHANNEL_0, 0xFF - (active ? color->red : 0));
-                ledc_set_duty(LEDC_SPEED_MODE, LEDC_CHANNEL_1, 0xFF - (active ? color->green : 0));
-                ledc_set_duty(LEDC_SPEED_MODE, LEDC_CHANNEL_2, 0xFF - (active ? color->blue : 0));
-                ledc_update_duty(LEDC_SPEED_MODE, LEDC_CHANNEL_0);
-                ledc_update_duty(LEDC_SPEED_MODE, LEDC_CHANNEL_1);
-                ledc_update_duty(LEDC_SPEED_MODE, LEDC_CHANNEL_2);
-
-                vTaskDelay(pdMS_TO_TICKS(color->interval));
-
-                active = !active;
-            }
-            break;
+            vTaskDelay(pdMS_TO_TICKS(color->interval));
         }
     }
 
     // Turn off all LEDs
-    ledc_set_duty(LEDC_SPEED_MODE, LEDC_CHANNEL_0, 0xFF);
-    ledc_set_duty(LEDC_SPEED_MODE, LEDC_CHANNEL_1, 0xFF);
-    ledc_set_duty(LEDC_SPEED_MODE, LEDC_CHANNEL_2, 0xFF);
-    ledc_update_duty(LEDC_SPEED_MODE, LEDC_CHANNEL_0);
-    ledc_update_duty(LEDC_SPEED_MODE, LEDC_CHANNEL_1);
-    ledc_update_duty(LEDC_SPEED_MODE, LEDC_CHANNEL_2);
+    status_led_set(0, 0, 0);
 }
 
 static void status_led_task() {
@@ -163,47 +165,72 @@ void status_led_init() {
     colors_semaphore = xSemaphoreCreateBinary();
 
     ledc_timer_config_t ledc_timer = {
-            .duty_resolution = LEDC_TIMER_8_BIT, // resolution of PWM duty
-            .freq_hz = 1000,                      // frequency of PWM signal
-            .speed_mode = LEDC_HIGH_SPEED_MODE,           // timer mode
-            .timer_num = LEDC_TIMER_0,            // timer index
-            .clk_cfg = LEDC_AUTO_CLK,              // Auto select the source clock
+            .duty_resolution = LEDC_TIMER_8_BIT,
+            .freq_hz = STATUS_LED_FREQ,
+            .speed_mode = LEDC_SPEED_MODE,
+            .timer_num = LEDC_TIMER_0,
+            .clk_cfg = LEDC_AUTO_CLK,
     };
 
     ledc_timer_config(&ledc_timer);
 
-    ledc_channel_config_t ledc_channel_red = {
-            .channel    = LEDC_CHANNEL_0,
-            .duty       = 255,
-            .gpio_num   = STATUS_LED_RED_GPIO,
+    ledc_channel_config_t ledc_config = {
+            .duty = 255,
             .speed_mode = LEDC_SPEED_MODE,
-            .hpoint     = 0,
-            .timer_sel  = LEDC_TIMER_0
+            .hpoint = 0,
+            .timer_sel = LEDC_TIMER_0
     };
 
-    ledc_channel_config_t ledc_channel_green = {
-            .channel    = LEDC_CHANNEL_1,
-            .duty       = 255,
-            .gpio_num   = STATUS_LED_GREEN_GPIO,
-            .speed_mode = LEDC_SPEED_MODE,
-            .hpoint     = 0,
-            .timer_sel  = LEDC_TIMER_0
-    };
+    ledc_config.channel = STATUS_LED_RED_CHANNEL;
+    ledc_config.gpio_num = STATUS_LED_RED_GPIO;
+    ledc_channel_config(&ledc_config);
 
-    ledc_channel_config_t ledc_channel_blue = {
-            .channel    = LEDC_CHANNEL_2,
-            .duty       = 255,
-            .gpio_num   = STATUS_LED_BLUE_GPIO,
-            .speed_mode = LEDC_SPEED_MODE,
-            .hpoint     = 0,
-            .timer_sel  = LEDC_TIMER_0
-    };
+    ledc_config.channel = STATUS_LED_GREEN_CHANNEL;
+    ledc_config.gpio_num = STATUS_LED_GREEN_GPIO;
+    ledc_channel_config(&ledc_config);
 
-    ledc_channel_config(&ledc_channel_red);
-    ledc_channel_config(&ledc_channel_green);
-    ledc_channel_config(&ledc_channel_blue);
+    ledc_config.channel = STATUS_LED_BLUE_CHANNEL;
+    ledc_config.gpio_num = STATUS_LED_BLUE_GPIO;
+    ledc_channel_config(&ledc_config);
+
+    ledc_config.channel = STATUS_LED_SLEEP_CHANNEL;
+    ledc_config.gpio_num = STATUS_LED_SLEEP_GPIO;
+    ledc_channel_config(&ledc_config);
+
+    ledc_config.duty = 0;
+    ledc_config.channel = STATUS_LED_RSSI_CHANNEL;
+    ledc_config.gpio_num = STATUS_LED_RSSI_GPIO;
+    ledc_channel_config(&ledc_config);
+
+    ledc_config.channel = STATUS_LED_ASSOC_CHANNEL;
+    ledc_config.gpio_num = STATUS_LED_ASSOC_GPIO;
+    ledc_channel_config(&ledc_config);
 
     ledc_fade_func_install(0);
 
     xTaskCreate(status_led_task, "status_led", 2048, NULL, TASK_PRIORITY_STATUS_LED, NULL);
+}
+
+void rssi_led_set(uint8_t value) {
+    status_led_channel_set(STATUS_LED_RSSI_CHANNEL, value);
+}
+
+void rssi_led_fade(uint8_t value, int max_fade_time_ms) {
+    status_led_channel_fade(STATUS_LED_RSSI_CHANNEL, value, max_fade_time_ms);
+}
+
+void assoc_led_set(uint8_t value) {
+    status_led_channel_set(STATUS_LED_ASSOC_CHANNEL, value);
+}
+
+void assoc_led_fade(uint8_t value, int max_fade_time_ms) {
+    status_led_channel_fade(STATUS_LED_ASSOC_CHANNEL, value, max_fade_time_ms);
+}
+
+void sleep_led_set(uint8_t value) {
+    status_led_channel_set(STATUS_LED_SLEEP_CHANNEL, 0xFF - value);
+}
+
+void sleep_led_fade(uint8_t value, int max_fade_time_ms) {
+    status_led_channel_fade(STATUS_LED_SLEEP_CHANNEL, 0xFF - value, max_fade_time_ms);
 }
