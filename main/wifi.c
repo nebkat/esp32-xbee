@@ -58,7 +58,7 @@ static void wifi_rssi_led_task(void *ctx) {
         vTaskDelay(pdMS_TO_TICKS(1000 - rssi_led_duration));
 
         check_counter++;
-        if (check_counter > 5) {
+        if (check_counter > 2) {
             check_counter = 0;
 
             wifi_ap_record_t wifi_ap_record;
