@@ -32,7 +32,9 @@ wifi_ap_record_t * wifi_scan(uint16_t *number);
 void wifi_ap_status(wifi_ap_status_t *status);
 void wifi_sta_status(wifi_sta_status_t *status);
 
-char * wifi_auth_mode_name(wifi_auth_mode_t auth_mode);
 void wait_for_ip();
+
+char *tcpip_if_name(tcpip_adapter_if_t tcpip_if);
+char * wifi_auth_mode_name(wifi_auth_mode_t auth_mode);
 
 #endif //ESP32_XBEE_WIFI_H
