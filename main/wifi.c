@@ -225,8 +225,7 @@ static void handle_got_ip6(void *arg, esp_event_base_t base, int32_t event_id, v
 }
 
 void wait_for_ip() {
-    // Wait for either IPv4 or IPv6
-    xEventGroupWaitBits(wifi_event_group, WIFI_IPV4_BIT | WIFI_IPV6_BIT, false, false, portMAX_DELAY);
+    xEventGroupWaitBits(wifi_event_group, WIFI_IPV4_BIT, false, false, portMAX_DELAY);
 }
 
 void wifi_init() {
