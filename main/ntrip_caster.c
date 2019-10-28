@@ -30,8 +30,6 @@
 
 static const char *TAG = "NTRIP_CASTER";
 
-#define NTRIP_CASTER_NAME "ESP32XBeeNtripCaster"
-
 #define BUFFER_SIZE 8192
 
 static int socket_caster = -1;

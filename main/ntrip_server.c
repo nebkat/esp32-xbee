@@ -15,22 +15,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <limits.h>
 #include <stdbool.h>
 #include <esp_log.h>
 #include <esp_event_base.h>
 #include <sys/socket.h>
 #include <wifi.h>
 #include <tasks.h>
-#include <ntrip_util.h>
 #include "ntrip.h"
 #include "config.h"
 #include "util.h"
 #include "uart.h"
 
 static const char *TAG = "NTRIP_SERVER";
-
-#define NTRIP_SERVER_NAME "ESP32XBeeNtripServer"
 
 static int socket_server = -1;
 static int server_keep_alive;

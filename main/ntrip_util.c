@@ -17,8 +17,12 @@
 
 #include <string.h>
 #include <stdbool.h>
-#include "include/ntrip_util.h"
+
+static bool str_starts_with(const char *a, const char *b) {
+    return strncmp(a, b, strlen(b)) == 0;
+}
 
 bool ntrip_response_ok(void *response) {
-    return strstr(response, "OK") == response || strstr(response, "ICY 200 OK") == response;
+    return str_starts_with(response, "OK") || str_starts_with(response, "ICY 200 OK") ||
+           str_starts_with(response, "HTTP/1.1 200 OK") || str_starts_with(response, "SOURCETABLE 200 OK");
 }

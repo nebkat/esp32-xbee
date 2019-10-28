@@ -15,25 +15,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <limits.h>
 #include <stdbool.h>
 #include <esp_log.h>
 #include <esp_event_base.h>
 #include <sys/socket.h>
 #include <wifi.h>
 #include <tasks.h>
-#include <lwip/netdb.h>
-#include <coap_config.h>
 #include <status_led.h>
-#include <ntrip_util.h>
 #include "ntrip.h"
 #include "config.h"
 #include "util.h"
 #include "uart.h"
 
 static const char *TAG = "NTRIP_CLIENT";
-
-#define NTRIP_CLIENT_NAME "ESP32XBeeNtripClient"
 
 static int socket_client = -1;
 
