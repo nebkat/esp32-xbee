@@ -52,6 +52,11 @@
             return o;
         };
 
+        $.fn.appendText = function(text) {
+            $(this).append(document.createTextNode(text));
+            return this;
+        }
+
 
         $(function() {
             var form = $("#form");
@@ -164,14 +169,21 @@
                     if (!data.ap.active) {
                         wifiApStatusText.text("Disabled");
                     } else {
-                        wifiApStatusText.text(data.ap.ssid + (data.ap.authmode == 'OPEN' && false ? " (OPEN)" : '') + " / " + data.ap.ip4 + " / " + data.ap.devices + " device" + (data.ap.devices != 1 ? "s" : ''));
+                        wifiApStatusText.appendText(data.ap.ssid + (data.ap.authmode == 'OPEN' ? " (OPEN)" : ''))
+                                .appendText(" / ")
+                                .append($('<a>', {text: data.ap.ip4, href: 'http://' + data.ap.ip4 + '/'}))
+                                .appendText(" / ")
+                                .appendText(data.ap.devices + " device" + (data.ap.devices != 1 ? "s" : ''));
                     }
 
                     if (!data.sta.connected) {
                         wifiStaStatusText.text("Not Connected");
                     } else {
-                        wifiStaStatusText.text(data.sta.ssid + (data.sta.authmode == 'OPEN' ? " (OPEN)" : '') + " / " + data.sta.ip4 + " / ");
-                        wifiStaStatusText.append($('<span class="text-' + wifiRssiColorClass(data.sta.rssi) + '"></span>').text(data.sta.rssi + "dBm"));
+                        wifiStaStatusText.appendText(data.sta.ssid + (data.sta.authmode == 'OPEN' ? " (OPEN)" : ''))
+                                .appendText(" / ")
+                                .append($('<a>', {text: data.sta.ip4, href: 'http://' + data.sta.ip4 + '/'}))
+                                .appendText(" / ")
+                                .append($('<span>', {class: 'text-' + wifiRssiColorClass(data.sta.rssi), text: data.sta.rssi + "dBm"}));
                     }
                 }).always(function() {
                     setTimeout(wifiStatusUpdate, 2500);
@@ -198,15 +210,15 @@
                     wifiNetworksDropdownButton.prop('disabled', false);
                 }).done(function(data) {
                     data.forEach(function(network) {
-                        var entry = $('<a class="wifi-network dropdown-item" href="javascript:void(0);"></a>');
+                        var entry = $('<a>', {class: 'wifi-network dropdown-item', href: 'javascript:void(0);'});
                         var open = network.authmode == "OPEN";
                         entry.data('ssid', network.ssid);
                         entry.data('rssi', network.rssi);
                         entry.data('authmode', network.authmode);
                         entry.data('open', open);
 
-                        entry.text(network.ssid + (open ? '' : " (" + network.authmode + ") "));
-                        entry.append($('<span class="text-' + wifiRssiColorClass(network.rssi) + '"></span>').text(network.rssi + "dBm"));
+                        entry.appendText(network.ssid + (open ? '' : " (" + network.authmode + ") "))
+                            .append($('<span>', {class: 'text-' + wifiRssiColorClass(network.rssi), text: network.rssi + "dBm"}));
 
                         entry.appendTo(open ? wifiNetworksOpenList : wifiNetworksSecuredList);
                     });
@@ -216,6 +228,8 @@
                         wifiNetworksPasswordInput.val('').prop('disabled', $(this).data('open'));
                         wifiNetworksPasswordEmptyInput.val('').prop('disabled', !$(this).data('open'));
                     });
+
+                    wifiNetworksDropdownButton.trigger('click');
                 });
             });
 
