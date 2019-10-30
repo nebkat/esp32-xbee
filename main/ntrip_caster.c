@@ -155,8 +155,8 @@ static void ntrip_caster_task(void *ctx) {
             free(authorization_header);
 
             // Use HTTP response if not an NTRIP client
-            char *user_agent_header = extract_http_header(buffer, "Content-Length:");
-            bool ntrip_agent = strcasestr(user_agent_header, "NTRIP") != NULL;
+            char *user_agent_header = extract_http_header(buffer, "User-Agent:");
+            bool ntrip_agent = user_agent_header == NULL || strcasestr(user_agent_header, "NTRIP") != NULL;
             free(user_agent_header);
 
             // Unknown mountpoint or sourcetable requested

@@ -78,7 +78,7 @@ static void ntrip_server_task(void *ctx) {
         buffer[len] = '\0';
 
         char *status = extract_http_header(buffer, "");
-        ERROR_ACTION(TAG, !ntrip_response_ok(status), free(status); goto _error, "Could not connect to mountpoint: %s", status);
+        ERROR_ACTION(TAG, status == NULL || !ntrip_response_ok(status), free(status); goto _error, "Could not connect to mountpoint: %s", status == NULL ? "HTTP response malformed" : status);
         free(status);
 
         ESP_LOGI(TAG, "Successfully connected to %s:%d/%s", host, port, mountpoint);
