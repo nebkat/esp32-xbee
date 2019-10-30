@@ -102,25 +102,21 @@ int connect_socket(char *host, int port, int socktype) {
         return CONNECT_SOCKET_ERROR_RESOLVE;
     }
 
-    int sock = CONNECT_SOCKET_ERROR_CONNECT;
+    int sock = -1;
 
     // Try all resolved hosts
     for (struct addrinfo *addr_result = addr_results; addr_result != NULL; addr_result = addr_result->ai_next) {
         sock = socket(addr_result->ai_family, addr_result->ai_socktype, addr_result->ai_protocol);
-        if (sock < 0) {
-            continue;
-        }
+        if (sock < 0) continue;
 
-        if (connect(sock, addr_result->ai_addr, addr_result->ai_addrlen) == 0) {
-            break;
-        }
+        if (connect(sock, addr_result->ai_addr, addr_result->ai_addrlen) == 0) break;
 
         close(sock);
     }
 
     freeaddrinfo(addr_results);
 
-    return sock;
+    return sock < 0 ? CONNECT_SOCKET_ERROR_CONNECT : sock;
 }
 
 char *http_auth_basic_header(const char *username, const char *password) {
