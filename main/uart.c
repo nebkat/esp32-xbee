@@ -30,22 +30,13 @@
 
 static const char *TAG = "UART";
 
-#define UART_PORT_DEFAULT UART_NUM_0
-#define UART_TX_PIN_DEFAULT UART_PIN_NO_CHANGE
-#define UART_RX_PIN_DEFAULT UART_PIN_NO_CHANGE
-#define UART_RTS_PIN_DEFAULT UART_PIN_NO_CHANGE
-#define UART_CTS_PIN_DEFAULT UART_PIN_NO_CHANGE
-#define UART_BAUD_RATE_DEFAULT 115200
-#define UART_DATA_BITS_DEFAULT UART_DATA_8_BITS
-#define UART_PARITY_DEFAULT UART_PARITY_DISABLE
-#define UART_STOP_BITS_DEFAULT UART_STOP_BITS_1
-
 ESP_EVENT_DEFINE_BASE(UART_EVENTS);
 
 void uart_register_handler(esp_event_handler_t event_handler) {
     ESP_ERROR_CHECK(esp_event_handler_register(UART_EVENTS, 0, event_handler, NULL));
 }
 
+static uart_data_t buffer;
 static int uart_port = -1;
 static bool uart_log_forward = false;
 
@@ -88,17 +79,22 @@ void uart_init() {
 }
 
 void uart_task(void *ctx) {
-    uart_data_t *data = (uart_data_t *) malloc(sizeof(uart_data_t));
     while (true) {
-        data->len = uart_read_bytes(uart_port, data->buffer, UART_BUFFER_SIZE, pdMS_TO_TICKS(50));
-        if (data->len < 0) {
+        buffer.len = uart_read_bytes(uart_port, buffer.buffer, UART_BUFFER_SIZE, pdMS_TO_TICKS(50));
+        if (buffer.len < 0) {
             ESP_LOGE(TAG, "Error reading from UART");
-        } else if (data->len == 0) {
+        } else if (buffer.len == 0) {
             continue;
         }
 
-        esp_event_post(UART_EVENTS, 0, data, data->len + sizeof(data->len), portMAX_DELAY);
+        esp_event_post(UART_EVENTS, 0, &buffer, buffer.len + sizeof(buffer.len), portMAX_DELAY);
     }
+}
+
+void uart_inject(void *data, size_t len) {
+    buffer.len = len;
+    memcpy(buffer.buffer, data, len);
+    esp_event_post(UART_EVENTS, 0, &buffer, buffer.len + sizeof(buffer.len), portMAX_DELAY);
 }
 
 int uart_log(char *buffer, size_t len) {
