@@ -245,7 +245,8 @@ static void handle_got_ip6(void *arg, esp_event_base_t base, int32_t event_id, v
     const ip_event_got_ip6_t *event = (const ip_event_got_ip6_t *) event_data;
 
     ESP_LOGI(TAG, "IP_EVENT_GOT_IP6: if: %s, ip: " IPV6STR, tcpip_if_name(event->if_index), IPV62STR(event->ip6_info.ip));
-    uart_nmea("$PESP,WIFI,%s,IP6," IPV6STR, tcpip_if_name(event->if_index), IPV62STR(event->ip6_info.ip));
+    // Disable IPv6 link-local logging
+    // uart_nmea("$PESP,WIFI,%s,IP6," IPV6STR, tcpip_if_name(event->if_index), IPV62STR(event->ip6_info.ip));
 
     xEventGroupSetBits(wifi_event_group, WIFI_IPV6_BIT);
 }
