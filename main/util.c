@@ -61,7 +61,7 @@ char *sockaddrtostr(struct sockaddr *a) {
 
 char *extract_http_header(const char *buffer, const char *key) {
     // Need space for key, at least 1 character, and newline
-    if (strlen(key) + 3 > strlen(buffer)) return NULL;
+    if (strlen(key) + 2 > strlen(buffer)) return NULL;
 
     // Cheap search ignores potential problems where searched key is at the end of another longer key
     char *start = strcasestr(buffer, key);
