@@ -209,7 +209,7 @@ static void handle_ap_sta_disconnected(void *arg, esp_event_base_t base, int32_t
     wifi_sta_list_t ap_sta_list;
     esp_wifi_ap_get_sta_list(&ap_sta_list);
 
-    if (status_led_ap != NULL) status_led_ap->flashing_mode = ap_sta_list.num > 0 ? STATUS_LED_FADE : STATUS_LED_STATIC;
+    if (status_led_ap != NULL && ap_sta_list.num == 0) status_led_ap->flashing_mode = STATUS_LED_STATIC;
 }
 
 static void handle_sta_got_ip(void *arg, esp_event_base_t base, int32_t event_id, void *event_data) {
@@ -332,7 +332,7 @@ void wifi_init() {
                 ap_password_len == 0 ? 'O' : 'P');
 
         config_color_t ap_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_WIFI_AP_COLOR));
-        if (ap_led_color.rgba != 0) status_led_ap = status_led_add(ap_led_color.rgba, STATUS_LED_STATIC, 250, 1000, 0);
+        if (ap_led_color.rgba != 0) status_led_ap = status_led_add(ap_led_color.rgba, STATUS_LED_STATIC, 500, 2000, 0);
 
         ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &config_ap));
     }
@@ -342,7 +342,7 @@ void wifi_init() {
         uart_nmea("$PESP,WIFI,STA,CONNECTING,%s,%c", config_sta.sta.ssid, sta_password_len == 0 ? 'O' : 'P');
 
         config_color_t sta_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_WIFI_STA_COLOR));
-        if (sta_led_color.rgba != 0) status_led_sta = status_led_add(sta_led_color.rgba, STATUS_LED_STATIC, 250, 1000, 0);
+        if (sta_led_color.rgba != 0) status_led_sta = status_led_add(sta_led_color.rgba, STATUS_LED_STATIC, 500, 2000, 0);
 
         ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &config_sta));
 

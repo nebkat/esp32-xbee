@@ -21,6 +21,7 @@
 #include <sys/socket.h>
 #include <wifi.h>
 #include <tasks.h>
+#include <status_led.h>
 #include "ntrip.h"
 #include "config.h"
 #include "util.h"
@@ -32,6 +33,8 @@ static const char *TAG = "NTRIP_SERVER";
 
 static int sock = -1;
 static int server_keep_alive;
+
+static status_led_handle_t status_led = NULL;
 
 static void ntrip_server_uart_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) {
     if (sock == -1) return;
@@ -45,6 +48,10 @@ static void ntrip_server_uart_handler(void* handler_args, esp_event_base_t base,
 
 static void ntrip_server_task(void *ctx) {
     uart_register_handler(ntrip_server_uart_handler);
+
+    config_color_t status_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_NTRIP_SERVER_COLOR));
+    if (status_led_color.rgba != 0) status_led = status_led_add(status_led_color.rgba, STATUS_LED_FADE, 500, 2000, 0);
+    if (status_led != NULL) status_led->active = false;
 
     while (true) {
         wait_for_ip();
@@ -84,6 +91,8 @@ static void ntrip_server_task(void *ctx) {
         ESP_LOGI(TAG, "Successfully connected to %s:%d/%s", host, port, mountpoint);
         uart_nmea("$PESP,NTRIP,SRV,CONNECTED,%s:%d,%s", host, port, mountpoint);
 
+        if (status_led != NULL) status_led->active = true;
+
         // Keep alive
         server_keep_alive = NTRIP_KEEP_ALIVE_THRESHOLD;
         while (true) {
@@ -97,6 +106,8 @@ static void ntrip_server_task(void *ctx) {
             server_keep_alive += NTRIP_KEEP_ALIVE_THRESHOLD / 10;
             vTaskDelay(pdMS_TO_TICKS(NTRIP_KEEP_ALIVE_THRESHOLD / 10));
         }
+
+        if (status_led != NULL) status_led->active = false;
 
         ESP_LOGW(TAG, "Disconnected from %s:%d/%s", host, port, mountpoint);
         uart_nmea("$PESP,NTRIP,SRV,DISCONNECTED,%s:%d,%s", host, port, mountpoint);

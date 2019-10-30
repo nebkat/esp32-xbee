@@ -26,6 +26,7 @@
 #include "lwip/err.h"
 #include "lwip/sockets.h"
 #include <wifi.h>
+#include <status_led.h>
 
 #include "socket_server.h"
 #include "config.h"
@@ -44,6 +45,11 @@ static const char *TAG = "SOCKET_SERVER";
 #define SOCKET_IP_PROTOCOL IPPROTO_IP6
 #endif
 
+int sock_tcp, sock_udp;
+char *buffer;
+
+static status_led_handle_t status_led = NULL;
+
 typedef struct socket_client_t {
     int socket;
     struct sockaddr_in6 addr;
@@ -52,10 +58,6 @@ typedef struct socket_client_t {
 } socket_client_t;
 
 SLIST_HEAD(socket_client_list_t, socket_client_t) socket_client_list;
-
-int sock_tcp, sock_udp;
-
-char *buffer;
 
 static bool socket_address_equal(struct sockaddr_in6 *a, struct sockaddr_in6 *b) {
     if (a->sin6_family != b->sin6_family) return false;
@@ -84,6 +86,8 @@ static socket_client_t * socket_client_add(int sock, struct sockaddr_in6 addr, i
     ESP_LOGI(TAG, "Accepted %s client %s", SOCKTYPE_NAME(socktype), addr_str);
     uart_nmea("$PESP,SOCK,SRV,%s,CONNECTED,%s", SOCKTYPE_NAME(socktype), addr_str);
 
+    if (status_led != NULL) status_led->flashing_mode = STATUS_LED_FADE;
+
     return client;
 }
 
@@ -96,6 +100,8 @@ static void socket_client_remove(socket_client_t *socket_client) {
 
     SLIST_REMOVE(&socket_client_list, socket_client, socket_client_t, next);
     free(socket_client);
+
+    if (status_led != NULL && SLIST_EMPTY(&socket_client_list)) status_led->flashing_mode = STATUS_LED_STATIC;
 }
 
 static void socket_server_uart_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) {
@@ -243,6 +249,10 @@ static void socket_clients_receive(fd_set *socket_set) {
 
 static void socket_server_task(void *ctx) {
     uart_register_handler(socket_server_uart_handler);
+
+    config_color_t status_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_SOCKET_CLIENT_COLOR));
+    if (status_led_color.rgba != 0) status_led = status_led_add(status_led_color.rgba, STATUS_LED_FADE, 500, 2000, 0);
+    if (status_led != NULL) status_led->active = false;
 
     while (true) {
         wait_for_ip();

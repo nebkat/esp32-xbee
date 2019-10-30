@@ -59,7 +59,7 @@ const config_item_t CONFIG_ITEMS[] = {
         }, {
                 .key = KEY_CONFIG_NTRIP_SERVER_COLOR,
                 .type = CONFIG_ITEM_TYPE_COLOR,
-                .def.color.rgba = 0x00000000
+                .def.color.rgba = 0x00000055u
         }, {
                 .key = KEY_CONFIG_NTRIP_SERVER_HOST,
                 .type = CONFIG_ITEM_TYPE_STRING,
@@ -90,7 +90,7 @@ const config_item_t CONFIG_ITEMS[] = {
         }, {
                 .key = KEY_CONFIG_NTRIP_CLIENT_COLOR,
                 .type = CONFIG_ITEM_TYPE_COLOR,
-                .def.color.rgba = 0x00000000
+                .def.color.rgba = 0x00000055u
         }, {
                 .key = KEY_CONFIG_NTRIP_CLIENT_HOST,
                 .type = CONFIG_ITEM_TYPE_STRING,
@@ -121,7 +121,7 @@ const config_item_t CONFIG_ITEMS[] = {
         }, {
                 .key = KEY_CONFIG_NTRIP_CASTER_COLOR,
                 .type = CONFIG_ITEM_TYPE_COLOR,
-                .def.color.rgba = 0x00000000
+                .def.color.rgba = 0x00000055u
         }, {
                 .key = KEY_CONFIG_NTRIP_CASTER_PORT,
                 .type = CONFIG_ITEM_TYPE_UINT16,
@@ -149,7 +149,7 @@ const config_item_t CONFIG_ITEMS[] = {
         }, {
                 .key = KEY_CONFIG_SOCKET_SERVER_COLOR,
                 .type = CONFIG_ITEM_TYPE_COLOR,
-                .def.color.rgba = 0x00000000
+                .def.color.rgba = 0x00000055u
         }, {
                 .key = KEY_CONFIG_SOCKET_SERVER_TCP_PORT,
                 .type = CONFIG_ITEM_TYPE_UINT16,
@@ -167,7 +167,7 @@ const config_item_t CONFIG_ITEMS[] = {
         }, {
                 .key = KEY_CONFIG_SOCKET_CLIENT_COLOR,
                 .type = CONFIG_ITEM_TYPE_COLOR,
-                .def.color.rgba = 0x00000000
+                .def.color.rgba = 0x00000055u
         }, {
                 .key = KEY_CONFIG_SOCKET_CLIENT_HOST,
                 .type = CONFIG_ITEM_TYPE_STRING,
@@ -245,7 +245,7 @@ const config_item_t CONFIG_ITEMS[] = {
         }, {
                 .key = KEY_CONFIG_WIFI_AP_COLOR,
                 .type = CONFIG_ITEM_TYPE_COLOR,
-                .def.color.rgba = 0x00000000
+                .def.color.rgba = 0x00000055u
         }, {
                 .key = KEY_CONFIG_WIFI_AP_SSID,
                 .type = CONFIG_ITEM_TYPE_STRING,

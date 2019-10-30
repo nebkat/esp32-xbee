@@ -46,8 +46,9 @@ static void ntrip_client_uart_handler(void* handler_args, esp_event_base_t base,
 static void ntrip_client_task(void *ctx) {
     uart_register_handler(ntrip_client_uart_handler);
 
-    status_led = status_led_add(0x00FF0055, STATUS_LED_FADE, 500, 5000, 0);
-    status_led->active = false;
+    config_color_t status_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_NTRIP_CLIENT_COLOR));
+    if (status_led_color.rgba != 0) status_led = status_led_add(status_led_color.rgba, STATUS_LED_FADE, 500, 2000, 0);
+    if (status_led != NULL) status_led->active = false;
 
     while (true) {
         wait_for_ip();
@@ -87,16 +88,16 @@ static void ntrip_client_task(void *ctx) {
         ERROR_ACTION(TAG, status == NULL || !ntrip_response_ok(status), free(status); goto _error, "Could not connect to mountpoint: %s", status == NULL ? "HTTP response malformed" : status);
         free(status);
 
-        status_led->active = true;
-
         ESP_LOGI(TAG, "Successfully connected to %s:%d/%s", host, port, mountpoint);
         uart_nmea("$PESP,NTRIP,CLI,CONNECTED,%s:%d,%s", host, port, mountpoint);
+
+        if (status_led != NULL) status_led->active = true;
 
         while ((len = read(sock, buffer, BUFFER_SIZE)) >= 0) {
             uart_write(buffer, len);
         }
 
-        status_led->active = false;
+        if (status_led != NULL) status_led->active = false;
 
         ESP_LOGW(TAG, "Disconnected from %s:%d/%s", host, port, mountpoint);
         uart_nmea("$PESP,NTRIP,CLI,DISCONNECTED,%s:%d,%s", host, port, mountpoint);

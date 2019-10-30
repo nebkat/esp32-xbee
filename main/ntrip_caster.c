@@ -23,6 +23,7 @@
 #include <wifi.h>
 #include <mdns.h>
 #include <tasks.h>
+#include <status_led.h>
 #include "ntrip.h"
 #include "config.h"
 #include "util.h"
@@ -33,6 +34,8 @@ static const char *TAG = "NTRIP_CASTER";
 #define BUFFER_SIZE 512
 
 static int sock = -1;
+
+static status_led_handle_t status_led = NULL;
 
 typedef struct ntrip_caster_client_t {
     int socket;
@@ -53,6 +56,8 @@ static void ntrip_caster_client_remove(ntrip_caster_client_t *caster_client) {
 
     SLIST_REMOVE(&caster_clients_list, caster_client, ntrip_caster_client_t, next);
     free(caster_client);
+
+    if (status_led != NULL && SLIST_EMPTY(&caster_clients_list)) status_led->flashing_mode = STATUS_LED_STATIC;
 }
 
 static void ntrip_caster_uart_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) {
@@ -101,6 +106,9 @@ static int ntrip_caster_socket_init() {
 
 static void ntrip_caster_task(void *ctx) {
     uart_register_handler(ntrip_caster_uart_handler);
+
+    config_color_t status_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_NTRIP_CASTER_COLOR));
+    if (status_led_color.rgba != 0) status_led = status_led_add(status_led_color.rgba, STATUS_LED_STATIC, 500, 2000, 0);
 
     while (true) {
         wait_for_ip();
@@ -211,6 +219,8 @@ static void ntrip_caster_task(void *ctx) {
 
             // Socket will now be dealt with by ntrip_caster_uart_handler, set to -1 so it doesn't get destroyed
             sock_client = -1;
+
+            if (status_led != NULL) status_led->flashing_mode = STATUS_LED_FADE;
 
             char *addr_str = sockaddrtostr((struct sockaddr *) &source_addr);
             uart_nmea("$PESP,NTRIP,CST,CLIENT,CONNECTED,%s", addr_str);
