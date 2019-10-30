@@ -68,7 +68,7 @@ static void ntrip_client_task(void *ctx) {
 
         buffer = malloc(BUFFER_SIZE);
 
-        char *authorization = http_auth_basic(username, password);
+        char *authorization = http_auth_basic_header(username, password);
         snprintf(buffer, BUFFER_SIZE, "GET /%s HTTP/1.1" NEWLINE \
                 "User-Agent: NTRIP %s/1.0" NEWLINE \
                 "Authorization: %s" NEWLINE

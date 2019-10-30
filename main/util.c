@@ -121,7 +121,7 @@ int connect_socket(char *host, int port, int socktype) {
     return sock;
 }
 
-char *http_auth_basic(const char *username, const char *password) {
+char *http_auth_basic_header(const char *username, const char *password) {
     int out;
     char *user_info = NULL;
     char *digest = NULL;

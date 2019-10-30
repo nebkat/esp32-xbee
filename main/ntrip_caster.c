@@ -30,7 +30,7 @@
 
 static const char *TAG = "NTRIP_CASTER";
 
-#define BUFFER_SIZE 8192
+#define BUFFER_SIZE 512
 
 static int sock = -1;
 
@@ -147,7 +147,7 @@ void ntrip_caster_task(void *ctx) {
             free(mountpoint_path);
 
             // Ensure authenticated
-            char *basic_authentication = strlen(username) == 0 ? NULL : http_auth_basic(username, password);
+            char *basic_authentication = strlen(username) == 0 ? NULL : http_auth_basic_header(username, password);
             char *authorization_header = extract_http_header(buffer, "Authorization:");
             bool authenticated = basic_authentication == NULL ||
                     (authorization_header != NULL && strcasecmp(basic_authentication, authorization_header) == 0);
