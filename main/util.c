@@ -32,6 +32,57 @@ void destroy_socket(int *socket) {
     *socket = -1;
 }
 
+// Include space for port
+static char addr_str[INET6_ADDRSTRLEN + 6 + 1];
+
+char *sockaddrtostr(struct sockaddr_in6 *a) {
+    int port = 0;
+
+    // Get address string
+    if (a->sin6_family == PF_INET) {
+        struct sockaddr_in *a4 = (struct sockaddr_in *) a;
+
+        inet_ntop(AF_INET, &a4->sin_addr, addr_str, INET_ADDRSTRLEN);
+        port = a4->sin_port;
+    } else if (a->sin6_family == PF_INET6) {
+        inet_ntop(AF_INET6, &a->sin6_addr, addr_str, INET6_ADDRSTRLEN);
+        port = a->sin6_port;
+    } else {
+        return "UNKNOWN";
+    }
+
+    // Append port number
+    sprintf(addr_str + strlen(addr_str), ":%d", port);
+
+    return addr_str;
+}
+
+char *extract_http_header(const char *buffer, const char *key) {
+    // Need space for key, at least 1 character, and newline
+    if (strlen(key) + 3 > strlen(buffer)) return NULL;
+
+    // Cheap search ignores potential problems where searched key is at the end of another longer key
+    char *start = strcasestr(buffer, key);
+    if (!start) return NULL;
+    start += strlen(key);
+
+    char *end = strstr(start, "\r\n");
+    if (!end) return NULL;
+
+    // Trim whitespace at start and end
+    while (isspace((unsigned char) *start) && start < end) start++;
+    while (isspace((unsigned char) *(end - 1)) && start < end) end--;
+
+    int len = (int) (end - start);
+    if (len == 0) return NULL;
+
+    char *header_value = malloc(len);
+    if (header_value == NULL) return NULL;
+
+    memcpy(header_value, start, len);
+    return header_value;
+}
+
 int connect_socket(char *host, int port, int socktype) {
     struct addrinfo addr_hints;
     struct addrinfo *addr_results;

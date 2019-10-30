@@ -1,6 +1,8 @@
 #ifndef ESP32_XBEE_CONFIG_H
 #define ESP32_XBEE_CONFIG_H
 
+#include <stddef.h>
+
 typedef enum {
     CONFIG_ITEM_TYPE_BOOL = 0,
     CONFIG_ITEM_TYPE_INT8,
@@ -63,6 +65,7 @@ typedef struct config_item {
 
 // NTRIP
 #define KEY_CONFIG_NTRIP_SERVER_ACTIVE "ntr_srv_active"
+#define KEY_CONFIG_NTRIP_SERVER_COLOR "ntr_srv_color"
 #define KEY_CONFIG_NTRIP_SERVER_HOST "ntr_srv_host"
 #define KEY_CONFIG_NTRIP_SERVER_PORT "ntr_srv_port"
 #define KEY_CONFIG_NTRIP_SERVER_MOUNTPOINT "ntr_srv_mp"
@@ -70,6 +73,7 @@ typedef struct config_item {
 #define KEY_CONFIG_NTRIP_SERVER_PASSWORD "ntr_srv_pass"
 
 #define KEY_CONFIG_NTRIP_CLIENT_ACTIVE "ntr_cli_active"
+#define KEY_CONFIG_NTRIP_CLIENT_COLOR "ntr_cli_color"
 #define KEY_CONFIG_NTRIP_CLIENT_HOST "ntr_cli_host"
 #define KEY_CONFIG_NTRIP_CLIENT_PORT "ntr_cli_port"
 #define KEY_CONFIG_NTRIP_CLIENT_MOUNTPOINT "ntr_cli_mp"
@@ -77,6 +81,7 @@ typedef struct config_item {
 #define KEY_CONFIG_NTRIP_CLIENT_PASSWORD "ntr_cli_pass"
 
 #define KEY_CONFIG_NTRIP_CASTER_ACTIVE "ntr_cst_active"
+#define KEY_CONFIG_NTRIP_CASTER_COLOR "ntr_cst_color"
 #define KEY_CONFIG_NTRIP_CASTER_PORT "ntr_cst_port"
 #define KEY_CONFIG_NTRIP_CASTER_MOUNTPOINT "ntr_cst_mp"
 #define KEY_CONFIG_NTRIP_CASTER_USERNAME "ntr_cst_user"
@@ -84,8 +89,16 @@ typedef struct config_item {
 
 // Socket
 #define KEY_CONFIG_SOCKET_SERVER_ACTIVE "sck_srv_active"
+#define KEY_CONFIG_SOCKET_SERVER_COLOR "sck_srv_color"
 #define KEY_CONFIG_SOCKET_SERVER_TCP_PORT "sck_srv_t_port"
 #define KEY_CONFIG_SOCKET_SERVER_UDP_PORT "sck_srv_u_port"
+
+#define KEY_CONFIG_SOCKET_CLIENT_ACTIVE "sck_cli_active"
+#define KEY_CONFIG_SOCKET_CLIENT_COLOR "sck_cli_color"
+#define KEY_CONFIG_SOCKET_CLIENT_HOST "sck_cli_host"
+#define KEY_CONFIG_SOCKET_CLIENT_PORT "sck_cli_port"
+#define KEY_CONFIG_SOCKET_CLIENT_TYPE_TCP_UDP "sck_cli_type"
+#define KEY_CONFIG_SOCKET_CLIENT_CONNECT_MESSAGE "sck_cli_msg"
 
 // UART
 #define KEY_CONFIG_UART_NUM "uart_num"
@@ -133,9 +146,6 @@ uint32_t config_get_u32(const config_item_t *item);
 uint64_t config_get_u64(const config_item_t *item);
 config_color_t config_get_color(const config_item_t *item);
 
-esp_err_t config_get_str(const char* key, char *out_value, size_t *len, const char *default_value);
-esp_err_t config_get_blob(const char* key, char *out_value, size_t *len, const char *default_value);
-
 esp_err_t config_set(const config_item_t *item, void *value);
 esp_err_t config_set_bool1(const char *key, bool value);
 esp_err_t config_set_i8(const char *key, int8_t value);
@@ -150,6 +160,7 @@ esp_err_t config_set_color(const char *key, config_color_t value);
 esp_err_t config_set_str(const char *key, char *value);
 esp_err_t config_set_blob(const char *key, char *value, size_t length);
 
+esp_err_t config_get_str_blob_alloc(const config_item_t *item, void **out_value);
 esp_err_t config_get_str_blob(const config_item_t *item, void *out_value, size_t *length);
 esp_err_t config_get_primitive(const config_item_t *item, void *out_value);
 

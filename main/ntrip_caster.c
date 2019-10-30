@@ -32,39 +32,36 @@ static const char *TAG = "NTRIP_CASTER";
 
 #define BUFFER_SIZE 8192
 
-static int socket_caster = -1;
+static int sock = -1;
 
 typedef struct ntrip_caster_client_t {
     int socket;
-    struct ntrip_caster_client_t *next;
+    SLIST_ENTRY(ntrip_caster_client_t) next;
 } ntrip_caster_client_t;
 
-ntrip_caster_client_t *caster_clients;
+SLIST_HEAD(caster_clients_list_t, ntrip_caster_client_t) caster_clients_list;
 
-static void ntrip_caster_client_remove(ntrip_caster_client_t **caster_client_ptr) {
-    destroy_socket(&(*caster_client_ptr)->socket);
+static void ntrip_caster_client_remove(ntrip_caster_client_t *caster_client) {
+    struct sockaddr_in6 client_addr;
+    socklen_t socklen = sizeof(client_addr);
+    int err = getpeername(caster_client->socket, (struct sockaddr *) &client_addr, &socklen);
+    char *addr_str = err != 0 ? "UNKNOWN" : sockaddrtostr((struct sockaddr *) &client_addr);
 
-    ntrip_caster_client_t *remove_client = *caster_client_ptr;
-    *caster_client_ptr = remove_client->next;
+    uart_nmea("$PESP,NTRIP,CST,CLIENT,DISCONNECTED,%s", addr_str);
 
-    free(remove_client);
+    destroy_socket(&caster_client->socket);
+
+    SLIST_REMOVE(&caster_clients_list, caster_client, ntrip_caster_client_t, next);
+    free(caster_client);
 }
 
 static void ntrip_caster_uart_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) {
     uart_data_t *data = event_data;
 
-    ntrip_caster_client_t **caster_client_ptr = &caster_clients;
-    ntrip_caster_client_t *caster_client = caster_clients;
-    while (caster_client != NULL) {
-        int err = send(caster_client->socket, data->buffer, data->len, 0);
-        if (err < 0) {
-            ESP_LOGI(TAG, "Client disconnected");
-            ntrip_caster_client_remove(caster_client_ptr);
-        } else {
-            caster_client_ptr = &caster_client->next;
-        }
-
-        caster_client = *caster_client_ptr;
+    ntrip_caster_client_t *client, *client_tmp;
+    SLIST_FOREACH_SAFE(client, &caster_clients_list, next, client_tmp) {
+        int err = write(client->socket, data->buffer, data->len);
+        if (err < 0) ntrip_caster_client_remove(client);
     }
 }
 
@@ -83,33 +80,21 @@ static int ntrip_caster_socket_init() {
         dest_addr.sin6_port = htons(port);
 #endif
 
-    socket_caster = socket(SOCKET_ADDR_FAMILY, SOCK_STREAM, SOCKET_IP_PROTOCOL);
-    if (socket_caster < 0) {
-        ESP_LOGE(TAG, "Unable to create socket: errno %d", errno);
-        return socket_caster;
-    }
-    ESP_LOGI(TAG, "TCP socket created");
+    sock = socket(SOCKET_ADDR_FAMILY, SOCK_STREAM, SOCKET_IP_PROTOCOL);
+    ERROR_ACTION(TAG, sock < 0, return sock, "Could not create TCP socket: %d %s", errno, strerror(errno));
 
     int reuse = 1;
-    int err = setsockopt(socket_caster, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
-    if (err != 0) {
-        ESP_LOGE(TAG, "Unable to set socket options: errno %d", errno);
-        perror(NULL);
-    }
+    int err = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+    ERROR_ACTION(TAG, err != 0, destroy_socket(&sock); return err, "Could not set TCP socket options: %d %s", errno, strerror(errno));
 
-    err = bind(socket_caster, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
-    if (err != 0) {
-        ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
-        return err;
-    }
-    ESP_LOGI(TAG, "Socket bound, port %d", port);
+    err = bind(sock, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+    ERROR_ACTION(TAG, err != 0, destroy_socket(&sock); return err, "Could not bind TCP socket: %d %s", errno, strerror(errno));
 
-    err = listen(socket_caster, 1);
-    if (err != 0) {
-        ESP_LOGE(TAG, "Error occurred during listen: errno %d", errno);
-        return err;
-    }
-    ESP_LOGI(TAG, "Socket listening");
+    err = listen(sock, 1);
+    ERROR_ACTION(TAG, err != 0, destroy_socket(&sock); return err, "Could not listen to TCP socket: %d %s", errno, strerror(errno));
+
+    ESP_LOGI(TAG, "Listening on port %d", port);
+    uart_nmea("$PESP,NTRIP,CST,BIND,%d", port);
 
     return 0;
 }
@@ -120,147 +105,121 @@ void ntrip_caster_task(void *ctx) {
     while (true) {
         wait_for_ip();
 
-        destroy_socket(&socket_caster);
-
         ntrip_caster_socket_init();
 
-        char mountpoint[64];
-        char username[64];
-        char password[64];
-        size_t length;
+        char *mountpoint, *username, *password;
+        config_get_str_blob_alloc(CONF_ITEM(KEY_CONFIG_NTRIP_CASTER_USERNAME), (void **) &username);
+        config_get_str_blob_alloc(CONF_ITEM(KEY_CONFIG_NTRIP_CASTER_PASSWORD), (void **) &password);
+        config_get_str_blob_alloc(CONF_ITEM(KEY_CONFIG_NTRIP_CASTER_MOUNTPOINT), (void **) &mountpoint);
 
-        length = 64;
-        config_get_str_blob(CONF_ITEM(KEY_CONFIG_NTRIP_CASTER_USERNAME), (char *) username, &length);
-        length = 64;
-        config_get_str_blob(CONF_ITEM(KEY_CONFIG_NTRIP_CASTER_PASSWORD), (char *) password, &length);
-        length = 64;
-        config_get_str_blob(CONF_ITEM(KEY_CONFIG_NTRIP_CASTER_MOUNTPOINT), (char *) mountpoint, &length);
-
-        int socket_caster_client = -1;
-        char *request = malloc(BUFFER_SIZE);
+        // Wait for client connections
+        int sock_client = -1;
+        char *buffer = malloc(BUFFER_SIZE);
         while (true) {
-            destroy_socket(&socket_caster_client);
+            destroy_socket(&sock_client);
 
-            struct sockaddr_in6 source_addr; // Large enough for both IPv4 or IPv6
-            uint addr_len = sizeof(source_addr);
-            socket_caster_client = accept(socket_caster, (struct sockaddr *)&source_addr, &addr_len);
-            if (socket_caster_client < 0) {
-                ESP_LOGE(TAG, "Unable to accept connection: errno %d", errno);
-                break;
-            }
+            struct sockaddr_in6 source_addr;
+            size_t addr_len = sizeof(source_addr);
+            sock_client = accept(sock, (struct sockaddr *)&source_addr, &addr_len);
+            ERROR_ACTION(TAG, sock_client < 0, goto _error, "Unable to accept connection: %d %s", errno, strerror(errno));
 
-            ESP_LOGI(TAG, "Accepted request");
+            int len = read(sock_client, buffer, BUFFER_SIZE - 1);
+            ERROR_ACTION(TAG, len <= 0, continue, "Unable to receive from client: %d %s", errno, strerror(errno));
+            buffer[len] = '\0';
 
-            int len = recv(socket_caster_client, request, BUFFER_SIZE - 1, 0);
-            if (len <= 0) {
-                ESP_LOGE(TAG, "Could not receive from client");
-                continue;
-            }
-            request[len] = '\0';
+            // Find mountpoint requested by looking for GET /(%s)?
+            char *mountpoint_path = extract_http_header(buffer, "GET ");
+            ERROR_ACTION(TAG, mountpoint_path == NULL, continue, "Client did not send GET request");
 
-            char *token = strtok(request, NEWLINE);
-            char path[64];
-            if (sscanf(token, "GET /%64[^\r]", path) != 1) {
-                // Unsupported method, no action required in NTRIP
-                continue;
-            }
+            // Move pointer to name of mountpoint, or empty string if sourcetable request
+            char *mountpoint_name = mountpoint_path;
 
+            // Treat GET /mountpoint and GET mountpoint the same
+            if (mountpoint_name[0] == '/') mountpoint_name++;
+
+            // Move to space or end of string (removing HTTP/1.1 from line)
+            int space;
+            for (space = 0; mountpoint_name[space] != ' ' && mountpoint_name[space] != '\0'; space++);
+            mountpoint_name[space] = '\0';
+
+            // Print sourcetable if exact mountpoint was not requested
+            bool print_sourcetable = strcasecmp(mountpoint, mountpoint_name) != 0;
+            free(mountpoint_path);
+
+            // Ensure authenticated
             char *basic_authentication = strlen(username) == 0 ? NULL : http_auth_basic(username, password);
-
-            bool valid = true;
-            bool authenticated = basic_authentication == NULL ? true : false;
-            bool ntrip_agent = false;
-            while ((token = strtok(NULL, NEWLINE)) != NULL) {
-                // End of header
-                if (strlen(token) == 0) break;
-
-                char key[64];
-                char value[256];
-                if (sscanf(token, "%63[^:]:%*[ ]%255[^\n]", key, value) != 2) {
-                    valid = false;
-                    ESP_LOGE(TAG, "Detected invalid header line: %s", token);
-                    break;
-                }
-
-                if (strcasecmp(key, "User-Agent") == 0) {
-                    ntrip_agent = strcasestr(value, "NTRIP") != NULL;
-                } else if (!authenticated && strcasecmp(key, "Authorization") == 0) {
-                    authenticated = strcasestr(value, "Basic ") == value && strcasecmp(value + 6, basic_authentication + 6) == 0;
-                }
-            }
-
+            char *authorization_header = extract_http_header(buffer, "Authorization:");
+            bool authenticated = basic_authentication == NULL ||
+                    (authorization_header != NULL && strcasecmp(basic_authentication, authorization_header) == 0);
             free(basic_authentication);
+            free(authorization_header);
 
-            // Skip invalid requests
-            if (!valid) continue;
-
-            // Mountpoint requested
-            if (strstr(path, mountpoint) == path) {
-                if (!authenticated) {
-                    char *message = "Authorization Required";
-
-                    char *response = NULL;
-                    asprintf(&response, "HTTP/1.0 401 Unauthorized" NEWLINE \
-                            "Server: %s/1.0" NEWLINE \
-                            "WWW-Authenticate: Basic realm=\"/%s\"" NEWLINE
-                            "Content-Type: text/plain" NEWLINE \
-                            "Content-Length: %d" NEWLINE \
-                            "Connection: close" NEWLINE \
-                            NEWLINE \
-                            "%s",
-                            NTRIP_CASTER_NAME, mountpoint, strlen(message), message);
-
-                    int err = send(socket_caster_client, response, strlen(response), 0);
-                    free(response);
-                    if (err < 0) {
-                        ESP_LOGE(TAG, "Error occurred during sending: errno %d", errno);
-                    }
-
-                    continue;
-                }
-
-                char response[] = "ICY 200 OK" NEWLINE;
-                int err = send(socket_caster_client, response, sizeof(response), 0);
-                if (err < 0) {
-                    ESP_LOGE(TAG, "Error occurred during sending: errno %d", errno);
-                    continue;
-                }
-
-                ntrip_caster_client_t *client = malloc(sizeof(ntrip_caster_client_t));
-                client->socket = socket_caster_client;
-                client->next = caster_clients;
-                caster_clients = client;
-
-                // Socket will now be dealt with by ntrip_caster_uart_handler
-                socket_caster_client = -1;
-
-                continue;
-            }
+            // Use HTTP response if not an NTRIP client
+            char *user_agent_header = extract_http_header(buffer, "Content-Length:");
+            bool ntrip_agent = strcasestr(user_agent_header, "NTRIP") != NULL;
+            free(user_agent_header);
 
             // Unknown mountpoint or sourcetable requested
-            char *stream = NULL;
-            asprintf(&stream, "STR;%s;;;;;;;;0.00;0.00;0;0;;none;%c;N;0;" NEWLINE "ENDSOURCETABLE",
-                    mountpoint, strlen(username) == 0 ? 'N' : 'B');
+            if (print_sourcetable) {
+                char *stream = NULL;
+                asprintf(&stream, "STR;%s;;;;;;;;0.00;0.00;0;0;;none;%c;N;0;" NEWLINE "ENDSOURCETABLE",
+                        mountpoint, strlen(username) == 0 ? 'N' : 'B');
 
-            char *response = NULL;
-            asprintf(&response, "%s 200 OK" NEWLINE \
-                "Server: %s/1.0" NEWLINE \
-                "Content-Type: text/plain" NEWLINE \
-                "Content-Length: %d" NEWLINE \
-                "Connection: close" NEWLINE \
-                NEWLINE \
-                "%s",
-                ntrip_agent ? "SOURCETABLE" : "HTTP/1.0", NTRIP_CASTER_NAME, strlen(stream), stream);
+                snprintf(buffer, BUFFER_SIZE, "%s 200 OK" NEWLINE \
+                        "Server: %s/1.0" NEWLINE \
+                        "Content-Type: text/plain" NEWLINE \
+                        "Content-Length: %d" NEWLINE \
+                        "Connection: close" NEWLINE \
+                        NEWLINE \
+                        "%s",
+                        ntrip_agent ? "SOURCETABLE" : "HTTP/1.0", NTRIP_CASTER_NAME, strlen(stream), stream);
 
-            int err = send(socket_caster_client, response, strlen(response), 0);
-            free(stream);
-            free(response);
-            if (err < 0) {
-                ESP_LOGE(TAG, "Error occurred during sending: errno %d", errno);
+                free(stream);
+
+                int err = write(sock_client, buffer, strlen(buffer));
+                if (err < 0) ESP_LOGE(TAG, "Could not send response to client: %d %s", errno, strerror(errno));
+
+                continue;
             }
+
+            // Request basic authentication header
+            if (!authenticated) {
+                char *message = "Authorization Required";
+                snprintf(buffer, BUFFER_SIZE, "HTTP/1.0 401 Unauthorized" NEWLINE \
+                        "Server: %s/1.0" NEWLINE \
+                        "WWW-Authenticate: Basic realm=\"/%s\"" NEWLINE
+                        "Content-Type: text/plain" NEWLINE \
+                        "Content-Length: %d" NEWLINE \
+                        "Connection: close" NEWLINE \
+                        NEWLINE \
+                        "%s",
+                        NTRIP_CASTER_NAME, mountpoint, strlen(message), message);
+
+                int err = write(sock_client, buffer, strlen(buffer));
+                if (err < 0) ESP_LOGE(TAG, "Could not send response to client: %d %s", errno, strerror(errno));
+
+                continue;
+            }
+
+            char response[] = "ICY 200 OK" NEWLINE NEWLINE;
+            int err = write(sock_client, response, sizeof(response));
+            ERROR_ACTION(TAG, err < 0, continue, "Could not send response to client: %d %s", errno, strerror(errno));
+
+            ntrip_caster_client_t *client = malloc(sizeof(ntrip_caster_client_t));
+            client->socket = sock_client;
+            SLIST_INSERT_HEAD(&caster_clients_list, client, next);
+
+            // Socket will now be dealt with by ntrip_caster_uart_handler, set to -1 so it doesn't get destroyed
+            sock_client = -1;
+
+            char *addr_str = sockaddrtostr((struct sockaddr *) &source_addr);
+            uart_nmea("$PESP,NTRIP,CST,CLIENT,CONNECTED,%s", addr_str);
         }
 
-        free(request);
+        _error:
+        destroy_socket(&sock);
+
+        free(buffer);
     }
 
     vTaskDelete(NULL);

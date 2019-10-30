@@ -23,6 +23,7 @@
 #include <status_led.h>
 #include <nmea.h>
 #include <lwip/inet.h>
+#include <socket_client.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_system.h"
@@ -92,6 +93,7 @@ void app_main()
     ntrip_client_init();
 
     socket_server_init();
+    socket_client_init();
 
     uart_nmea("$PESP,INIT,COMPLETE");
 }

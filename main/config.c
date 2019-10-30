@@ -57,6 +57,10 @@ const config_item_t CONFIG_ITEMS[] = {
                 .type = CONFIG_ITEM_TYPE_BOOL,
                 .def.bool1 = false
         }, {
+                .key = KEY_CONFIG_NTRIP_SERVER_COLOR,
+                .type = CONFIG_ITEM_TYPE_COLOR,
+                .def.color.rgba = 0x00000000
+        }, {
                 .key = KEY_CONFIG_NTRIP_SERVER_HOST,
                 .type = CONFIG_ITEM_TYPE_STRING,
                 .def.str = ""
@@ -83,6 +87,10 @@ const config_item_t CONFIG_ITEMS[] = {
                 .key = KEY_CONFIG_NTRIP_CLIENT_ACTIVE,
                 .type = CONFIG_ITEM_TYPE_BOOL,
                 .def.bool1 = false
+        }, {
+                .key = KEY_CONFIG_NTRIP_CLIENT_COLOR,
+                .type = CONFIG_ITEM_TYPE_COLOR,
+                .def.color.rgba = 0x00000000
         }, {
                 .key = KEY_CONFIG_NTRIP_CLIENT_HOST,
                 .type = CONFIG_ITEM_TYPE_STRING,
@@ -111,6 +119,10 @@ const config_item_t CONFIG_ITEMS[] = {
                 .type = CONFIG_ITEM_TYPE_BOOL,
                 .def.bool1 = false
         }, {
+                .key = KEY_CONFIG_NTRIP_CASTER_COLOR,
+                .type = CONFIG_ITEM_TYPE_COLOR,
+                .def.color.rgba = 0x00000000
+        }, {
                 .key = KEY_CONFIG_NTRIP_CASTER_PORT,
                 .type = CONFIG_ITEM_TYPE_UINT16,
                 .def.uint16 = 2101
@@ -135,6 +147,10 @@ const config_item_t CONFIG_ITEMS[] = {
                 .type = CONFIG_ITEM_TYPE_BOOL,
                 .def.bool1 = false
         }, {
+                .key = KEY_CONFIG_SOCKET_SERVER_COLOR,
+                .type = CONFIG_ITEM_TYPE_COLOR,
+                .def.color.rgba = 0x00000000
+        }, {
                 .key = KEY_CONFIG_SOCKET_SERVER_TCP_PORT,
                 .type = CONFIG_ITEM_TYPE_UINT16,
                 .def.uint16 = 23
@@ -142,6 +158,32 @@ const config_item_t CONFIG_ITEMS[] = {
                 .key = KEY_CONFIG_SOCKET_SERVER_UDP_PORT,
                 .type = CONFIG_ITEM_TYPE_UINT16,
                 .def.uint16 = 23
+        },
+
+        {
+                .key = KEY_CONFIG_SOCKET_CLIENT_ACTIVE,
+                .type = CONFIG_ITEM_TYPE_BOOL,
+                .def.bool1 = false
+        }, {
+                .key = KEY_CONFIG_SOCKET_CLIENT_COLOR,
+                .type = CONFIG_ITEM_TYPE_COLOR,
+                .def.color.rgba = 0x00000000
+        }, {
+                .key = KEY_CONFIG_SOCKET_CLIENT_HOST,
+                .type = CONFIG_ITEM_TYPE_STRING,
+                .def.str = ""
+        }, {
+                .key = KEY_CONFIG_SOCKET_CLIENT_PORT,
+                .type = CONFIG_ITEM_TYPE_UINT16,
+                .def.uint16 = 23
+        }, {
+                .key = KEY_CONFIG_SOCKET_CLIENT_TYPE_TCP_UDP,
+                .type = CONFIG_ITEM_TYPE_BOOL,
+                .def.bool1 = true
+        }, {
+                .key = KEY_CONFIG_SOCKET_CLIENT_CONNECT_MESSAGE,
+                .type = CONFIG_ITEM_TYPE_STRING,
+                .def.str = "\n"
         },
 
         // UART
@@ -401,16 +443,6 @@ bool config_get_bool1(const config_item_t *item) {
     return value > 0;
 }
 
-esp_err_t config_get_str(const char* key, char *out_value, size_t *len, const char *default_value) {
-    strcpy(out_value, default_value);
-    return nvs_get_str(config_handle, key, out_value, len);
-}
-
-esp_err_t config_get_blob(const char* key, char *out_value, size_t *len, const char *default_value) {
-    strcpy(out_value, default_value);
-    return nvs_get_blob(config_handle, key, out_value, len);
-}
-
 const config_item_t * config_get_item(const char *key) {
     for (unsigned int i = 0; i < sizeof(CONFIG_ITEMS) / sizeof(config_item_t); i++) {
         const config_item_t *item = &CONFIG_ITEMS[i];
@@ -475,6 +507,14 @@ esp_err_t config_get_primitive(const config_item_t *item, void *out_value) {
     return (ret == ESP_OK || ret == ESP_ERR_NVS_NOT_FOUND) ? ESP_OK : ret;
 }
 
+esp_err_t config_get_str_blob_alloc(const config_item_t *item, void **out_value) {
+    size_t length;
+    esp_err_t ret = config_get_str_blob(item, NULL, &length);
+    if (ret != ESP_OK) return ret;
+    *out_value = malloc(length);
+    return config_get_str_blob(item, *out_value, &length);
+}
+
 esp_err_t config_get_str_blob(const config_item_t *item, void *out_value, size_t *length) {
     esp_err_t ret;
 
@@ -482,7 +522,7 @@ esp_err_t config_get_str_blob(const config_item_t *item, void *out_value, size_t
         case CONFIG_ITEM_TYPE_STRING:
             ret = nvs_get_str(config_handle, item->key, out_value, length);
             if (ret == ESP_ERR_NVS_NOT_FOUND) {
-                *length = strlen(item->def.str) + 1;
+                if (length != NULL) *length = strlen(item->def.str) + 1;
                 if (out_value != NULL) strcpy(out_value, item->def.str);
             }
             break;

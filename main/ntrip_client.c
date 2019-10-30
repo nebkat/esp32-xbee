@@ -29,95 +29,86 @@
 
 static const char *TAG = "NTRIP_CLIENT";
 
-static int socket_client = -1;
+#define BUFFER_SIZE 512
+
+static int sock = -1;
 
 static status_led_handle_t status_led = NULL;
 
 static void ntrip_client_uart_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) {
-    if (socket_client == -1) return;
+    if (sock == -1) return;
 
     uart_data_t *data = event_data;
-    int sent = send(socket_client, data->buffer, data->len, 0);
-    if (sent < 0) destroy_socket(&socket_client);
+    int sent = send(sock, data->buffer, data->len, 0);
+    if (sent < 0) destroy_socket(&sock);
 }
 
 static void ntrip_client_task(void *ctx) {
     uart_register_handler(ntrip_client_uart_handler);
 
-    while (true) {
-        status_led_remove(status_led);
+    status_led = status_led_add(0x00FF0055, STATUS_LED_FADE, 500, 5000, 0);
+    status_led->active = false;
 
+    while (true) {
         wait_for_ip();
 
-        destroy_socket(&socket_client);
+        char *buffer = NULL;
 
-        char host[128];
-        uint16_t port;
-        char mountpoint[64];
-        char username[64];
-        char password[64];
-
-        size_t length;
-
-        config_get_primitive(CONF_ITEM(KEY_CONFIG_NTRIP_CLIENT_PORT), &port);
-        length = 128;
-        config_get_str_blob(CONF_ITEM(KEY_CONFIG_NTRIP_CLIENT_HOST), (char *) host, &length);
-        length = 64;
-        config_get_str_blob(CONF_ITEM(KEY_CONFIG_NTRIP_CLIENT_USERNAME), (char *) username, &length);
-        length = 64;
-        config_get_str_blob(CONF_ITEM(KEY_CONFIG_NTRIP_CLIENT_PASSWORD), (char *) password, &length);
-        length = 64;
-        config_get_str_blob(CONF_ITEM(KEY_CONFIG_NTRIP_CLIENT_MOUNTPOINT), (char *) mountpoint, &length);
+        char *host, *mountpoint, *username, *password;
+        uint16_t port = config_get_u16(CONF_ITEM(KEY_CONFIG_NTRIP_CLIENT_PORT));
+        config_get_str_blob_alloc(CONF_ITEM(KEY_CONFIG_NTRIP_CLIENT_HOST), (void **) &host);
+        config_get_str_blob_alloc(CONF_ITEM(KEY_CONFIG_NTRIP_CLIENT_USERNAME), (void **) &username);
+        config_get_str_blob_alloc(CONF_ITEM(KEY_CONFIG_NTRIP_CLIENT_PASSWORD), (void **) &password);
+        config_get_str_blob_alloc(CONF_ITEM(KEY_CONFIG_NTRIP_CLIENT_MOUNTPOINT), (void **) &mountpoint);
 
         ESP_LOGI(TAG, "Connecting to %s:%d/%s", host, port, mountpoint);
-        socket_client = connect_socket(host, port, SOCK_STREAM);
-        if (socket_client == CONNECT_SOCKET_ERROR_RESOLVE) {
-            ESP_LOGE(TAG, "Could not resolve host");
-            continue;
-        } else if (socket_client == CONNECT_SOCKET_ERROR_CONNECT) {
-            ESP_LOGE(TAG, "Could not connect to host: errno %d", errno);
-            continue;
-        }
+        sock = connect_socket(host, port, SOCK_STREAM);
+        ERROR_ACTION(TAG, sock == CONNECT_SOCKET_ERROR_RESOLVE, goto _error, "Could not resolve host");
+        ERROR_ACTION(TAG, sock == CONNECT_SOCKET_ERROR_CONNECT, goto _error, "Could not connect to host");
+
+        buffer = malloc(BUFFER_SIZE);
 
         char *authorization = http_auth_basic(username, password);
-        char *request = NULL;
-        asprintf(&request, "GET /%s HTTP/1.1" NEWLINE \
+        snprintf(buffer, BUFFER_SIZE, "GET /%s HTTP/1.1" NEWLINE \
                 "User-Agent: NTRIP %s/1.0" NEWLINE \
                 "Authorization: %s" NEWLINE
                 NEWLINE
                 , mountpoint, NTRIP_CLIENT_NAME, authorization);
-        int err = send(socket_client, request, strlen(request), 0);
         free(authorization);
-        free(request);
-        if (err < 0) {
-            ESP_LOGE(TAG, "Error occured during sending: errno %d", errno);
-            continue;
-        }
 
-        char *response = malloc(128);
-        int len = recv(socket_client, response, 128, 0);
-        if (len < 0) {
-            ESP_LOGE(TAG, "recv failed: errno %d", errno);
-            free(response);
-            continue;
-        }
+        int err = write(sock, buffer, strlen(buffer));
+        ERROR_ACTION(TAG, err < 0, goto _error, "Could not send request to caster: %d %s", errno, strerror(errno));
 
-        if (!ntrip_response_ok(response)) {
-            ESP_LOGE(TAG, "Error connecting: %s", response);
-            free(response);
-            continue;
-        }
+        int len = read(sock, buffer, BUFFER_SIZE - 1);
+        ERROR_ACTION(TAG, len <= 0, goto _error, "Could not receive response from caster: %d %s", errno, strerror(errno));
+        buffer[len] = '\0';
+
+        char *status = extract_http_header(buffer, "");
+        ERROR_ACTION(TAG, !ntrip_response_ok(status), free(status); goto _error, "Could not connect to mountpoint: %s", status);
+        free(status);
+
+        status_led->active = true;
 
         ESP_LOGI(TAG, "Successfully connected to %s:%d/%s", host, port, mountpoint);
+        uart_nmea("$PESP,NTRIP,CLI,CONNECTED,%s:%d,%s", host, port, mountpoint);
 
-        status_led = status_led_add(0x00FF0055, STATUS_LED_FADE, 500, 5000, 0);
-
-        while ((len = recv(socket_client, response, 128, 0)) >= 0) {
-            uart_write(response, len);
+        while ((len = read(sock, buffer, BUFFER_SIZE)) >= 0) {
+            uart_write(buffer, len);
         }
-        free(response);
+
+        status_led->active = false;
 
         ESP_LOGW(TAG, "Disconnected from %s:%d/%s", host, port, mountpoint);
+        uart_nmea("$PESP,NTRIP,CLI,DISCONNECTED,%s:%d,%s", host, port, mountpoint);
+
+        _error:
+        destroy_socket(&sock);
+
+        free(buffer);
+        free(host);
+        free(mountpoint);
+        free(username);
+        free(password);
     }
 
     vTaskDelete(NULL);

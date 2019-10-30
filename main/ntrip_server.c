@@ -28,15 +28,17 @@
 
 static const char *TAG = "NTRIP_SERVER";
 
-static int socket_server = -1;
+#define BUFFER_SIZE 512
+
+static int sock = -1;
 static int server_keep_alive;
 
 static void ntrip_server_uart_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) {
-    if (socket_server == -1) return;
+    if (sock == -1) return;
 
     uart_data_t *data = event_data;
-    int sent = send(socket_server, data->buffer, data->len, 0);
-    if (sent < 0) destroy_socket(&socket_server);
+    int sent = send(sock, data->buffer, data->len, 0);
+    if (sent < 0) destroy_socket(&sock);
 
     server_keep_alive = 0;
 }
@@ -47,69 +49,47 @@ void ntrip_server_task(void *ctx) {
     while (true) {
         wait_for_ip();
 
-        destroy_socket(&socket_server);
+        char *buffer = NULL;
 
-        char host[128];
+        char *host, *mountpoint, *password;
         uint16_t port;
-        char mountpoint[64];
-        char password[64];
-
-        size_t length;
-
         config_get_primitive(CONF_ITEM(KEY_CONFIG_NTRIP_SERVER_PORT), &port);
-        length = 128;
-        config_get_str_blob(CONF_ITEM(KEY_CONFIG_NTRIP_SERVER_HOST), (char *) host, &length);
-        length = 64;
-        config_get_str_blob(CONF_ITEM(KEY_CONFIG_NTRIP_SERVER_PASSWORD), (char *) password, &length);
-        length = 64;
-        config_get_str_blob(CONF_ITEM(KEY_CONFIG_NTRIP_SERVER_MOUNTPOINT), (char *) mountpoint, &length);
+        config_get_str_blob_alloc(CONF_ITEM(KEY_CONFIG_NTRIP_SERVER_HOST), (void **) &host);
+        config_get_str_blob_alloc(CONF_ITEM(KEY_CONFIG_NTRIP_SERVER_PASSWORD), (void **) &password);
+        config_get_str_blob_alloc(CONF_ITEM(KEY_CONFIG_NTRIP_SERVER_MOUNTPOINT), (void **) &mountpoint);
+
 
         ESP_LOGI(TAG, "Connecting to %s:%d/%s", host, port, mountpoint);
-        socket_server = connect_socket(host, port, SOCK_STREAM);
-        if (socket_server == CONNECT_SOCKET_ERROR_RESOLVE) {
-            ESP_LOGE(TAG, "Could not resolve host");
-            continue;
-        } else if (socket_server == CONNECT_SOCKET_ERROR_CONNECT) {
-            ESP_LOGE(TAG, "Could not connect to host: errno %d", errno);
-            continue;
-        }
+        sock = connect_socket(host, port, SOCK_STREAM);
+        ERROR_ACTION(TAG, sock == CONNECT_SOCKET_ERROR_RESOLVE, goto _error, "Could not resolve host");
+        ERROR_ACTION(TAG, sock == CONNECT_SOCKET_ERROR_CONNECT, goto _error, "Could not connect to host");
 
-        char *request = NULL;
-        asprintf(&request, "SOURCE %s /%s HTTP/1.1" NEWLINE \
+        buffer = malloc(BUFFER_SIZE);
+
+        snprintf(buffer, BUFFER_SIZE, "SOURCE %s /%s HTTP/1.1" NEWLINE \
                 "Source-Agent: NTRIP %s/1.0" NEWLINE \
                 NEWLINE, password, mountpoint, NTRIP_SERVER_NAME);
-        int err = send(socket_server, request, strlen(request), 0);
-        free(request);
-        if (err < 0) {
-            ESP_LOGE(TAG, "Error occured during sending: errno %d", errno);
-            continue;
-        }
 
-        char *response = malloc(128);
-        int len = recv(socket_server, response, 128, 0);
-        if (len < 0) {
-            ESP_LOGE(TAG, "recv failed: errno %d", errno);
-            free(response);
-            continue;
-        }
+        int err = write(sock, buffer, strlen(buffer));
+        ERROR_ACTION(TAG, err < 0, goto _error, "Could not send request to caster: %d %s", errno, strerror(errno));
 
-        bool response_ok = ntrip_response_ok(response);
-        free(response);
-        if (!response_ok) {
-            ESP_LOGE(TAG, "Error connecting: %s", response);
-            continue;
-        }
+        int len = read(sock, buffer, BUFFER_SIZE - 1);
+        ERROR_ACTION(TAG, len <= 0, goto _error, "Could not receive response from caster: %d %s", errno, strerror(errno));
+        buffer[len] = '\0';
+
+        char *status = extract_http_header(buffer, "");
+        ERROR_ACTION(TAG, !ntrip_response_ok(status), free(status); goto _error, "Could not connect to mountpoint: %s", status);
+        free(status);
 
         ESP_LOGI(TAG, "Successfully connected to %s:%d/%s", host, port, mountpoint);
+        uart_nmea("$PESP,NTRIP,SRV,CONNECTED,%s:%d,%s", host, port, mountpoint);
 
         // Keep alive
         server_keep_alive = NTRIP_KEEP_ALIVE_THRESHOLD;
         while (true) {
             if (server_keep_alive >= NTRIP_KEEP_ALIVE_THRESHOLD) {
-                int sent = send(socket_server, NEWLINE, NEWLINE_LENGTH, 0);
-                if (sent < 0) {
-                    break;
-                }
+                int sent = write(sock, NEWLINE, NEWLINE_LENGTH);
+                if (sent < 0) break;
 
                 server_keep_alive = 0;
             }
@@ -119,6 +99,15 @@ void ntrip_server_task(void *ctx) {
         }
 
         ESP_LOGW(TAG, "Disconnected from %s:%d/%s", host, port, mountpoint);
+        uart_nmea("$PESP,NTRIP,SRV,DISCONNECTED,%s:%d,%s", host, port, mountpoint);
+
+        _error:
+        destroy_socket(&sock);
+
+        free(buffer);
+        free(host);
+        free(mountpoint);
+        free(password);
     }
 
     vTaskDelete(NULL);

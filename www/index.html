@@ -5,7 +5,6 @@
     <script src="bootstrap-4.3.1.bundle.min.js"></script>
     <link rel="stylesheet" href="bootstrap-4.3.1.min.css">
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
-    <link rel="icon" href="/favicon.ico" type="image/x-icon">
     <style>
         input::-webkit-outer-spin-button,
         input::-webkit-inner-spin-button {
@@ -55,8 +54,21 @@
         $.fn.appendText = function(text) {
             $(this).append(document.createTextNode(text));
             return this;
+        };
+
+        function print_escape(str) {
+            return str.replace(/\\/g, '\\\\')
+                .replace(/\n/g, '\\n')
+                .replace(/\r/g, '\\r')
+                .replace(/\t/g, '\\t');
         }
 
+        function print_unescape(str) {
+            return str.replace(/\\\\/g, '\\')
+                .replace(/\\n/g, '\n')
+                .replace(/\\r/g, '\r')
+                .replace(/\\t/g, '\t');
+        }
 
         $(function() {
             var form = $("#form");
@@ -141,6 +153,10 @@
                     } else {
                         $this.val(value);
                     }
+
+                    // Reformat values when needed
+                    if ($this.data('formatted')) $this.trigger('change');
+
                 });
 
                 checkDisableIfs();
@@ -156,7 +172,7 @@
                 } else {
                     return 'danger';
                 }
-            }
+            };
 
             var wifiApStatusText = form.find('.wifi-ap-status');
             var wifiStaStatusText = form.find('.wifi-sta-status');
@@ -211,7 +227,7 @@
                 }).done(function(data) {
                     data.forEach(function(network) {
                         var entry = $('<a>', {class: 'wifi-network dropdown-item', href: 'javascript:void(0);'});
-                        var open = network.authmode == "OPEN";
+                        var open = network.authmode === "OPEN";
                         entry.data('ssid', network.ssid);
                         entry.data('rssi', network.rssi);
                         entry.data('authmode', network.authmode);
@@ -239,14 +255,14 @@
             });
 
 
-            wifiApIpByte1Input = form.find('input[name="w_ap_ip_1"]');
-            wifiApIpByte2Input = form.find('input[name="w_ap_ip_2"]');
-            wifiApIpByte3Input = form.find('input[name="w_ap_ip_3"]');
-            wifiApIpByte4Input = form.find('input[name="w_ap_ip_4"]');
-            wifiApIpPrefixText = form.find('.wifi-ap-ip-prefix');
-            wifiApIpMinInput = form.find('input[name="w_ap_ip_min"]');
-            wifiApIpMaxInput = form.find('input[name="w_ap_ip_max"]');
-            wifiApSubnetInput = form.find('select[name="w_ap_ip_sub"]');
+            var wifiApIpByte1Input = form.find('input[name="w_ap_ip_1"]');
+            var wifiApIpByte2Input = form.find('input[name="w_ap_ip_2"]');
+            var wifiApIpByte3Input = form.find('input[name="w_ap_ip_3"]');
+            var wifiApIpByte4Input = form.find('input[name="w_ap_ip_4"]');
+            var wifiApIpPrefixText = form.find('.wifi-ap-ip-prefix');
+            var wifiApIpMinInput = form.find('input[name="w_ap_ip_min"]');
+            var wifiApIpMaxInput = form.find('input[name="w_ap_ip_max"]');
+            var wifiApSubnetInput = form.find('select[name="w_ap_ip_sub"]');
 
             wifiApIpByte3Input.on('change input', function() {
                 wifiApIpPrefixText.text(wifiApIpByte1Input.val() + "." + wifiApIpByte2Input.val() + "." + wifiApIpByte3Input.val() + ".");
@@ -265,6 +281,15 @@
                 wifiApIpMinInput.val(min);
                 wifiApIpMaxInput.val(max);
             }).trigger('change');
+
+            var socketClientConnectMessageInput = form.find('input[name="sck_cli_msg"]');
+            var socketClientConnectMessageUnformattedInput = form.find('input[name="sck_cli_msg_unformatted"]');
+            socketClientConnectMessageInput.on('change', function() {
+                socketClientConnectMessageUnformattedInput.val(print_escape($(this).val()));
+            });
+            socketClientConnectMessageUnformattedInput.on('change', function() {
+                socketClientConnectMessageInput.val(print_unescape($(this).val()));
+            });
         });
 
         function autoTab(target) {
@@ -502,14 +527,14 @@
                                     <div class="input-group">
                                         <input type="text" name="w_ap_ssid" class="form-control" maxlength="32">
                                         <div class="input-group-append btn-group-toggle" data-toggle="buttons">
-                                            <label class="btn btn-outline-secondary">
+                                            <label class="btn btn-outline-warning">
                                                 <input type="checkbox" name="w_ap_ssid_hid" value="1"> Hidden
                                             </label>
                                         </div>
                                     </div>
                                 </div>
                                 <div class="col-6">
-                                    <label>Password</label>
+                                    <label>Security</label>
                                     <div class="input-group">
                                         <input type="password" name="w_ap_pass" data-disable-if="select[name='w_ap_auth_mode'] > option[value='0']" data-disable-if-condition=":selected" class="form-control" style="flex-grow: 2" >
                                         <select name="w_ap_auth_mode" class="custom-select">
@@ -627,6 +652,9 @@
                                 <input type="checkbox" name="ntr_cli_active" value="1" class="custom-control-input" id="switch-ntrip-client">
                                 <label class="custom-control-label" for="switch-ntrip-client"></label>
                             </div>
+                            <div class="d-inline mr-1 float-right">
+                                <input type="color" name="ntr_cli_color" data-disable-if="#switch-ntrip-client" value="#ffffff" id="color-ntrip-client">
+                            </div>
                         </div>
                         <div class="card-body">
                             <div class="form-row mb-3">
@@ -682,6 +710,9 @@
                             <div class="custom-control custom-switch d-inline float-right">
                                 <input type="checkbox" name="ntr_srv_active" value="1" class="custom-control-input" id="switch-ntrip-server">
                                 <label class="custom-control-label" for="switch-ntrip-server"></label>
+                            </div>
+                            <div class="d-inline mr-1 float-right">
+                                <input type="color" name="ntr_srv_color" data-disable-if="#switch-ntrip-server" value="#ffffff" id="color-ntrip-server">
                             </div>
                         </div>
                         <div class="card-body">
@@ -739,6 +770,9 @@
                                 <input type="checkbox" name="ntr_cst_active" value="1" class="custom-control-input" id="switch-ntrip-caster">
                                 <label class="custom-control-label" for="switch-ntrip-caster"></label>
                             </div>
+                            <div class="d-inline mr-1 float-right">
+                                <input type="color" name="ntr_cst_color" data-disable-if="#switch-ntrip-caster" value="#ffffff" id="color-ntrip-caster">
+                            </div>
                         </div>
                         <div class="card-body">
                             <div class="form-row mb-3">
@@ -773,10 +807,13 @@
                 <div class="col-xl-6">
                     <div data-disable-if="#switch-socket-server" class="card mb-3">
                         <div class="card-header">
-                            Sockets
+                            Socket server
                             <div class="custom-control custom-switch d-inline float-right">
                                 <input type="checkbox" name="sck_srv_active" value="1" class="custom-control-input" id="switch-socket-server">
                                 <label class="custom-control-label" for="switch-socket-server"></label>
+                            </div>
+                            <div class="d-inline mr-1 float-right">
+                                <input type="color" name="sck_srv_color" data-disable-if="#switch-socket-server" value="#ffffff" id="color-socket-server">
                             </div>
                         </div>
                         <div class="card-body">
@@ -791,6 +828,47 @@
                                     <label>UDP port</label>
                                     <div class="input-group">
                                         <input type="number" name="sck_srv_u_port" maxlength="5" min="0" max="65535" class="form-control" required>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div data-disable-if="#switch-socket-client" class="card mb-3">
+                        <div class="card-header">
+                            Socket client
+                            <div class="custom-control custom-switch d-inline float-right">
+                                <input type="checkbox" name="sck_cli_active" value="1" class="custom-control-input" id="switch-socket-client">
+                                <label class="custom-control-label" for="switch-socket-client"></label>
+                            </div>
+                            <div class="d-inline mr-1 float-right">
+                                <input type="color" name="sck_cli_color" data-disable-if="#switch-socket-client" value="#ffffff" id="color-socket-client">
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-row mb-3">
+                                <div class="col-8">
+                                    <label>Host and port</label>
+                                    <div class="input-group">
+                                        <div class="btn-group btn-group-toggle d-flex input-group-prepend" data-toggle="buttons">
+                                            <label class="btn btn-outline-secondary active">
+                                                <input type="radio" name="sck_cli_type" value="1" checked> TCP
+                                            </label>
+                                            <label class="btn btn-outline-secondary">
+                                                <input type="radio" name="sck_cli_type" value="0"> UDP
+                                            </label>
+                                        </div>
+                                        <input type="text" name="sck_cli_host" class="form-control" style="flex-grow: 3" required>
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text">:</span>
+                                        </div>
+                                        <input type="number" name="sck_cli_port" maxlength="5" min="0" max="65535" class="form-control" required>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <label>Connect message</label>
+                                    <div class="input-group">
+                                        <input type="text" name="sck_cli_msg_unformatted" class="form-control" value="">
+                                        <input type="hidden" name="sck_cli_msg" data-formatted="true">
                                     </div>
                                 </div>
                             </div>
