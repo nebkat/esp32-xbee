@@ -5,7 +5,7 @@
 
 #include <sys/socket.h>
 
-#define DEBUG( level, tag ) ESP_LOG_LEVEL(level, tag, "This is line %d of file %s (function %s)", __LINE__, __FILE__, __func__)
+#define PRINT_LINE printf("%s:%d %s\n", __FILE__, __LINE__, __func__)
 
 #define ERROR_ACTION(TAG, condition, action, format, ... ) if ((condition)) {             \
             ESP_LOGE(TAG, "%s:%d (%s): " format, __FILE__, __LINE__, __FUNCTION__,  ##__VA_ARGS__); \
