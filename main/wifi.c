@@ -33,20 +33,23 @@
 
 static const char *TAG = "WIFI";
 
-#define STA_RECONNECT_ATTEMPTS 5
-
 static EventGroupHandle_t wifi_event_group;
 const int WIFI_IPV4_BIT = BIT0;
 const int WIFI_IPV6_BIT = BIT1;
 
-static int sta_reconnect_attempts = STA_RECONNECT_ATTEMPTS;
-
-static TaskHandle_t status_task = NULL;
+static TaskHandle_t sta_status_task = NULL;
+static TaskHandle_t sta_reconnect_task = NULL;
 
 static status_led_handle_t status_led_ap;
 static status_led_handle_t status_led_sta;
 
-static bool ap_active;
+static wifi_config_t config_ap;
+static wifi_config_t config_sta;
+
+static int sta_reconnect_attempts = 0;
+
+static bool ap_active = false;
+static bool sta_active = false;
 
 static bool sta_connected;
 static wifi_ap_record_t sta_ap_info;
@@ -70,26 +73,57 @@ static void wifi_sta_status_task(void *ctx) {
     }
 }
 
+static void wifi_sta_reconnect_task(void *ctx) {
+    int delay = 0;
+    while (true) {
+        if (sta_reconnect_attempts == 0) delay = 0;
+        vTaskDelay(pdMS_TO_TICKS(delay * 1000));
+
+        sta_reconnect_attempts++;
+        if (sta_reconnect_attempts >= 5) {
+            if (delay == 0) delay = 1;
+            delay *= 2;
+            if (delay > 4096) delay = 4096;
+        }
+
+        ESP_LOGI(TAG, "Station Reconnecting: %s, attempts: %d, delay: %d", config_sta.sta.ssid, sta_reconnect_attempts, delay);
+        uart_nmea("$PESP,WIFI,STA,RECONNECTING,%s,%d,%ds", config_sta.sta.ssid, sta_reconnect_attempts, delay);
+
+        esp_wifi_connect();
+
+        // Wait for next disconnect event
+        vTaskSuspend(NULL);
+    }
+}
+
 static void handle_sta_start(void *arg, esp_event_base_t base, int32_t event_id, void *event_data) {
     ESP_LOGI(TAG, "WIFI_EVENT_STA_START");
+
+    sta_active = true;
+
     esp_wifi_connect();
 }
 
 static void handle_sta_stop(void *arg, esp_event_base_t base, int32_t event_id, void *event_data) {
     ESP_LOGI(TAG, "WIFI_EVENT_STA_STOP");
+
+    sta_active = false;
 }
 
 static void handle_sta_connected(void *arg, esp_event_base_t base, int32_t event_id, void *event_data) {
     const wifi_event_sta_connected_t *event = (const wifi_event_sta_connected_t *) event_data;
-    ESP_LOGI(TAG, "WIFI_EVENT_STA_CONNECTED: ssid: %.*s", event->ssid_len, event->ssid);
 
+    ESP_LOGI(TAG, "WIFI_EVENT_STA_CONNECTED: ssid: %.*s", event->ssid_len, event->ssid);
     uart_nmea("$PESP,WIFI,STA,CONNECTED,%.*s", event->ssid_len, event->ssid);
 
     sta_connected = true;
-    sta_reconnect_attempts = STA_RECONNECT_ATTEMPTS;
+    sta_reconnect_attempts = 0;
 
-    // Keep track of connection
-    xTaskCreate(wifi_sta_status_task, "wifi_sta_status", 1024, NULL, TASK_PRIORITY_WIFI_STATUS, status_task);
+    // Tracking status
+    if (sta_status_task != NULL) vTaskResume(sta_status_task);
+
+    // No longer attempting to reconnect
+    if (sta_reconnect_task != NULL) vTaskSuspend(sta_reconnect_task);
 
     tcpip_adapter_create_ip6_linklocal(TCPIP_ADAPTER_IF_STA);
 
@@ -119,19 +153,11 @@ static void handle_sta_disconnected(void *arg, esp_event_base_t base, int32_t ev
 
     sta_connected = false;
 
-    // Attempt to reconnect
-    if (sta_reconnect_attempts > 0) {
-        sta_reconnect_attempts--;
-
-        ESP_LOGI(TAG, "Station Reconnecting: %.*s, remaining: %d", event->ssid_len, event->ssid, sta_reconnect_attempts);
-        uart_nmea("$PESP,WIFI,STA,RECONNECTING,%.*s,%d", event->ssid_len, event->ssid, sta_reconnect_attempts);
-
-        esp_wifi_connect();
-    }
-
     // No longer tracking status
-    if (status_task != NULL) vTaskDelete(status_task);
-    status_task = NULL;
+    if (sta_status_task != NULL) vTaskSuspend(sta_status_task);
+
+    // Attempting to reconnect
+    if (sta_reconnect_task != NULL) vTaskResume(sta_reconnect_task);
 
     // Disable RSSI led
     rssi_led_set(0);
@@ -235,34 +261,36 @@ void wifi_init() {
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
 
     // SoftAP
-    wifi_config_t wifi_config_ap = {};
-    wifi_config_ap.ap.max_connection = 4;
+    config_ap.ap.max_connection = 4;
     bool ap_enable = config_get_bool1(CONF_ITEM(KEY_CONFIG_WIFI_AP_ACTIVE));
-    size_t ap_ssid_len = sizeof(wifi_config_ap.ap.ssid);
-    config_get_str_blob(CONF_ITEM(KEY_CONFIG_WIFI_AP_SSID), &wifi_config_ap.ap.ssid, &ap_ssid_len);
-    ap_ssid_len--; // Remove null terminator fro length
-    wifi_config_ap.ap.ssid_len = ap_ssid_len;
+    size_t ap_ssid_len = sizeof(config_ap.ap.ssid);
+    config_get_str_blob(CONF_ITEM(KEY_CONFIG_WIFI_AP_SSID), &config_ap.ap.ssid, &ap_ssid_len);
+    ap_ssid_len--; // Remove null terminator from length
+    config_ap.ap.ssid_len = ap_ssid_len;
     if (ap_ssid_len == 0) {
+        // Generate a default AP SSID based on MAC address and store
         uint8_t mac[6];
         esp_wifi_get_mac(ESP_IF_WIFI_AP, mac);
-        snprintf((char *) wifi_config_ap.ap.ssid, sizeof(wifi_config_ap.ap.ssid), "ESP_XBee_%02X%02X%02X",
+        snprintf((char *) config_ap.ap.ssid, sizeof(config_ap.ap.ssid), "ESP_XBee_%02X%02X%02X",
                 mac[3], mac[4], mac[5]);
+        config_ap.ap.ssid_len = strlen((char *) config_ap.ap.ssid);
 
-        config_set_str(KEY_CONFIG_WIFI_AP_SSID, (char *) wifi_config_ap.ap.ssid);
+        config_set_str(KEY_CONFIG_WIFI_AP_SSID, (char *) config_ap.ap.ssid);
     }
-    config_get_primitive(CONF_ITEM(KEY_CONFIG_WIFI_AP_SSID_HIDDEN), &wifi_config_ap.ap.ssid_hidden);
-    size_t ap_password_len = sizeof(wifi_config_ap.ap.password);
-    config_get_str_blob(CONF_ITEM(KEY_CONFIG_WIFI_AP_PASSWORD), &wifi_config_ap.ap.password, &ap_password_len);
+    config_get_primitive(CONF_ITEM(KEY_CONFIG_WIFI_AP_SSID_HIDDEN), &config_ap.ap.ssid_hidden);
+    size_t ap_password_len = sizeof(config_ap.ap.password);
+    config_get_str_blob(CONF_ITEM(KEY_CONFIG_WIFI_AP_PASSWORD), &config_ap.ap.password, &ap_password_len);
     ap_password_len--; // Remove null terminator from length
-    config_get_primitive(CONF_ITEM(KEY_CONFIG_WIFI_AP_AUTH_MODE), &wifi_config_ap.ap.authmode);
+    config_get_primitive(CONF_ITEM(KEY_CONFIG_WIFI_AP_AUTH_MODE), &config_ap.ap.authmode);
 
     // STA
-    wifi_config_t wifi_config_sta = {};
     bool sta_enable = config_get_bool1(CONF_ITEM(KEY_CONFIG_WIFI_STA_ACTIVE));
-    size_t sta_ssid_len = sizeof(wifi_config_sta.sta.ssid);
-    config_get_str_blob(CONF_ITEM(KEY_CONFIG_WIFI_STA_SSID), &wifi_config_sta.sta.ssid, &sta_ssid_len);
-    size_t sta_password_len = sizeof(wifi_config_sta.sta.password);
-    config_get_str_blob(CONF_ITEM(KEY_CONFIG_WIFI_STA_PASSWORD), &wifi_config_sta.sta.password, &sta_password_len);
+    size_t sta_ssid_len = sizeof(config_sta.sta.ssid);
+    config_get_str_blob(CONF_ITEM(KEY_CONFIG_WIFI_STA_SSID), &config_sta.sta.ssid, &sta_ssid_len);
+    sta_ssid_len--; // Remove null terminator from length
+    if (sta_ssid_len == 0) sta_enable = false;
+    size_t sta_password_len = sizeof(config_sta.sta.password);
+    config_get_str_blob(CONF_ITEM(KEY_CONFIG_WIFI_STA_PASSWORD), &config_sta.sta.password, &sta_password_len);
     sta_password_len--; // Remove null terminator from length
 
     // Listen for WiFi and IP events
@@ -295,23 +323,35 @@ void wifi_init() {
     ESP_ERROR_CHECK(esp_wifi_set_mode(wifi_mode));
 
     if (ap_enable) {
-        ESP_LOGI(TAG, "WIFI_AP_SSID: %s (%s)", wifi_config_ap.ap.ssid, ap_password_len == 0 ? "open" : "with password");
-        uart_nmea("$PESP,WIFI,AP,SSID,%s,%s", wifi_config_ap.ap.ssid, ap_password_len == 0 ? "OPEN" : "PASSWORD");
+        ESP_LOGI(TAG, "WIFI_AP_SSID: %s %s(%s)", config_ap.ap.ssid,
+                config_ap.ap.ssid_hidden ? "(hidden) " : "",
+                ap_password_len == 0 ? "open" : "with password");
+        uart_nmea("$PESP,WIFI,AP,SSID,%s,%c,%c", config_ap.ap.ssid,
+                config_ap.ap.ssid_hidden ? 'H' : 'V',
+                ap_password_len == 0 ? 'O' : 'P');
 
         config_color_t ap_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_WIFI_AP_COLOR));
         if (ap_led_color.rgba != 0) status_led_ap = status_led_add(ap_led_color.rgba, STATUS_LED_STATIC, 250, 1000, 0);
 
-        ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &wifi_config_ap));
+        ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &config_ap));
     }
 
     if (sta_enable) {
-        ESP_LOGI(TAG, "WIFI_STA_CONNECTING: %s (%s)", wifi_config_sta.sta.ssid, sta_password_len == 0 ? "open" : "with password");
-        uart_nmea("$PESP,WIFI,STA,CONNECTING,%s,%s", wifi_config_sta.sta.ssid, sta_password_len == 0 ? "OPEN" : "PASSWORD");
+        ESP_LOGI(TAG, "WIFI_STA_CONNECTING: %s (%s)", config_sta.sta.ssid, sta_password_len == 0 ? "open" : "with password");
+        uart_nmea("$PESP,WIFI,STA,CONNECTING,%s,%c", config_sta.sta.ssid, sta_password_len == 0 ? 'O' : 'P');
 
         config_color_t sta_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_WIFI_STA_COLOR));
         if (sta_led_color.rgba != 0) status_led_sta = status_led_add(sta_led_color.rgba, STATUS_LED_STATIC, 250, 1000, 0);
 
-        ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config_sta));
+        ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &config_sta));
+
+        // Keep track of connection for RSSI indicator, but suspend until connected
+        xTaskCreate(wifi_sta_status_task, "wifi_sta_status", 1024, NULL, TASK_PRIORITY_WIFI_STATUS, &sta_status_task);
+        vTaskSuspend(sta_status_task);
+
+        // Reconnect when disconnected
+        xTaskCreate(wifi_sta_reconnect_task, "wifi_sta_reconnect", 2048, NULL, TASK_PRIORITY_WIFI_STATUS, &sta_reconnect_task);
+        vTaskSuspend(sta_reconnect_task);
     }
 
     ESP_ERROR_CHECK(esp_wifi_start());
@@ -321,11 +361,8 @@ void wifi_ap_status(wifi_ap_status_t *status) {
     status->active = ap_active;
     if (!ap_active) return;
 
-    wifi_config_t wifi_config;
-    esp_wifi_get_config(WIFI_IF_AP, &wifi_config);
-
-    memcpy(status->ssid, wifi_config.ap.ssid, sizeof(wifi_config.ap.ssid));
-    status->authmode = wifi_config.ap.authmode;
+    memcpy(status->ssid, config_ap.ap.ssid, sizeof(config_ap.ap.ssid));
+    status->authmode = config_ap.ap.authmode;
 
     wifi_sta_list_t ap_sta_list;
     esp_wifi_ap_get_sta_list(&ap_sta_list);
@@ -340,7 +377,10 @@ void wifi_ap_status(wifi_ap_status_t *status) {
 
 void wifi_sta_status(wifi_sta_status_t *status) {
     status->connected = sta_connected;
-    if (!sta_connected) return;
+    if (!sta_connected) {
+        memcpy(status->ssid, config_sta.sta.ssid, sizeof(config_sta.sta.ssid));
+        return;
+    }
 
     memcpy(status->ssid, sta_ap_info.ssid, sizeof(sta_ap_info.ssid));
     status->rssi = sta_ap_info.rssi;
@@ -357,7 +397,7 @@ wifi_ap_record_t *wifi_scan(uint16_t *number) {
     wifi_mode_t wifi_mode;
     esp_wifi_get_mode(&wifi_mode);
 
-    // Ensure
+    // Ensure STA is enabled
     if (wifi_mode != WIFI_MODE_APSTA && wifi_mode != WIFI_MODE_STA) {
         esp_wifi_set_mode(wifi_mode == WIFI_MODE_AP ? WIFI_MODE_APSTA : WIFI_MODE_STA);
     }
