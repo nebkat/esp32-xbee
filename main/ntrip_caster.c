@@ -99,7 +99,7 @@ static int ntrip_caster_socket_init() {
     return 0;
 }
 
-void ntrip_caster_task(void *ctx) {
+static void ntrip_caster_task(void *ctx) {
     uart_register_handler(ntrip_caster_uart_handler);
 
     while (true) {

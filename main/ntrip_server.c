@@ -43,7 +43,7 @@ static void ntrip_server_uart_handler(void* handler_args, esp_event_base_t base,
     server_keep_alive = 0;
 }
 
-void ntrip_server_task(void *ctx) {
+static void ntrip_server_task(void *ctx) {
     uart_register_handler(ntrip_server_uart_handler);
 
     while (true) {
