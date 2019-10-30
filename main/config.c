@@ -266,7 +266,7 @@ const config_item_t CONFIG_ITEMS[] = {
         }, {
                 .key = KEY_CONFIG_WIFI_STA_ACTIVE,
                 .type = CONFIG_ITEM_TYPE_BOOL,
-                .def.bool1 = true
+                .def.bool1 = false
         }, {
                 .key = KEY_CONFIG_WIFI_STA_COLOR,
                 .type = CONFIG_ITEM_TYPE_COLOR,
