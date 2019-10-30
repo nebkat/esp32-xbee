@@ -1,6 +1,8 @@
 #ifndef ESP32_XBEE_STATUS_LED_H
 #define ESP32_XBEE_STATUS_LED_H
 
+#include <sys/queue.h>
+
 typedef enum {
     STATUS_LED_STATIC = 0,
     STATUS_LED_FADE,
@@ -21,8 +23,7 @@ struct status_led_color_t {
     bool remove;
     bool active;
 
-    status_led_handle_t prev;
-    status_led_handle_t next;
+    SLIST_ENTRY(status_led_color_t) next;
 };
 
 status_led_handle_t status_led_add(uint32_t rgba, status_led_flashing_mode_t flashing_mode, uint32_t interval, uint32_t duration, uint8_t expire);

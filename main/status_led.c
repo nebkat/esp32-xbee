@@ -24,6 +24,7 @@
 #include "freertos/xtensa_api.h"
 #include "freertos/portmacro.h"
 #include "status_led.h"
+#include <sys/queue.h>
 
 #define LEDC_SPEED_MODE LEDC_HIGH_SPEED_MODE
 
@@ -43,8 +44,9 @@
 
 #define STATUS_LED_FREQ 1000
 
-status_led_handle_t colors;
-SemaphoreHandle_t colors_semaphore;
+SLIST_HEAD(status_led_color_list_t, status_led_color_t) status_led_colors_list;
+
+static TaskHandle_t led_task;
 
 void status_led_clear() {
 
@@ -68,12 +70,8 @@ status_led_handle_t status_led_add(uint32_t rgba, status_led_flashing_mode_t fla
 
     color->active = true;
 
-    if (colors != NULL) colors->prev = color;
-    color->next = colors;
-
-    colors = color;
-
-    xSemaphoreGive(colors_semaphore);
+    SLIST_INSERT_HEAD(&status_led_colors_list, color, next);
+    vTaskResume(led_task);
 
     return color;
 }
@@ -132,38 +130,26 @@ static void status_led_show(status_led_handle_t color) {
 }
 
 static void status_led_task() {
-    status_led_handle_t color = NULL;
     while (true) {
         // Wait for a color
-        if (colors == NULL) xSemaphoreTake(colors_semaphore, 0);
+        if (SLIST_EMPTY(&status_led_colors_list)) vTaskSuspend(NULL);
 
-        // Start or loop around
-        if (color == NULL) color = colors;
+        status_led_handle_t color, color_tmp;
+        SLIST_FOREACH_SAFE(color, &status_led_colors_list, next, color_tmp) {
+            // Marked for removal
+            if (color->remove) {
+                SLIST_REMOVE(&status_led_colors_list, color, status_led_color_t, next);
+                free(color);
+                continue;
+            }
 
-        // Marked for removal
-        if (color->remove) {
-            if (color->prev != NULL) color->prev->next = color->next;
-            if (color->next != NULL) color->next->prev = color->prev;
-            if (colors == color) colors = color->next;
-
-            status_led_handle_t next = color->next;
-            free(color);
-            color = next;
-
-            continue;
+            // Show color
+            if (color->active) status_led_show(color);
         }
-
-        // Show color
-        if (color->active) status_led_show(color);
-
-        // Next color
-        color = color->next;
     }
 }
 
 void status_led_init() {
-    colors_semaphore = xSemaphoreCreateBinary();
-
     ledc_timer_config_t ledc_timer = {
             .duty_resolution = LEDC_TIMER_8_BIT,
             .freq_hz = STATUS_LED_FREQ,
@@ -208,7 +194,7 @@ void status_led_init() {
 
     ledc_fade_func_install(0);
 
-    xTaskCreate(status_led_task, "status_led", 2048, NULL, TASK_PRIORITY_STATUS_LED, NULL);
+    xTaskCreate(status_led_task, "status_led", 2048, NULL, TASK_PRIORITY_STATUS_LED, &led_task);
 }
 
 void rssi_led_set(uint8_t value) {
