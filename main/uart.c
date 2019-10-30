@@ -97,9 +97,9 @@ void uart_inject(void *data, size_t len) {
     esp_event_post(UART_EVENTS, 0, &buffer, buffer.len + sizeof(buffer.len), portMAX_DELAY);
 }
 
-int uart_log(char *buffer, size_t len) {
+int uart_log(char *buf, size_t len) {
     if (!uart_log_forward) return 0;
-    return uart_write(buffer, len);
+    return uart_write(buf, len);
 }
 
 int uart_nmea(const char *fmt, ...) {
@@ -116,7 +116,7 @@ int uart_nmea(const char *fmt, ...) {
     return l;
 }
 
-int uart_write(char *buffer, size_t len) {
+int uart_write(char *buf, size_t len) {
     if (uart_port < 0) return 0;
-    return uart_write_bytes(uart_port, buffer, len);
+    return uart_write_bytes(uart_port, buf, len);
 }
