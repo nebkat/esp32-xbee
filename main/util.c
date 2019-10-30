@@ -35,18 +35,20 @@ void destroy_socket(int *socket) {
 // Include space for port
 static char addr_str[INET6_ADDRSTRLEN + 6 + 1];
 
-char *sockaddrtostr(struct sockaddr_in6 *a) {
+char *sockaddrtostr(struct sockaddr *a) {
     int port = 0;
 
     // Get address string
-    if (a->sin6_family == PF_INET) {
+    if (a->sa_family == PF_INET) {
         struct sockaddr_in *a4 = (struct sockaddr_in *) a;
 
         inet_ntop(AF_INET, &a4->sin_addr, addr_str, INET_ADDRSTRLEN);
         port = a4->sin_port;
-    } else if (a->sin6_family == PF_INET6) {
-        inet_ntop(AF_INET6, &a->sin6_addr, addr_str, INET6_ADDRSTRLEN);
-        port = a->sin6_port;
+    } else if (a->sa_family == PF_INET6) {
+        struct sockaddr_in6 *a6 = (struct sockaddr_in6 *) a;
+
+        inet_ntop(AF_INET6, &a6->sin6_addr, addr_str, INET6_ADDRSTRLEN);
+        port = a6->sin6_port;
     } else {
         return "UNKNOWN";
     }
