@@ -37,7 +37,7 @@ static void ntrip_server_uart_handler(void* handler_args, esp_event_base_t base,
     if (sock == -1) return;
 
     uart_data_t *data = event_data;
-    int sent = send(sock, data->buffer, data->len, 0);
+    int sent = write(sock, data->buffer, data->len);
     if (sent < 0) destroy_socket(&sock);
 
     server_keep_alive = 0;
@@ -52,7 +52,7 @@ static void ntrip_server_task(void *ctx) {
         char *buffer = NULL;
 
         char *host, *mountpoint, *password;
-        uint16_t port;
+        uint16_t port = config_get_u16(CONF_ITEM(KEY_CONFIG_NTRIP_SERVER_PORT));
         config_get_primitive(CONF_ITEM(KEY_CONFIG_NTRIP_SERVER_PORT), &port);
         config_get_str_blob_alloc(CONF_ITEM(KEY_CONFIG_NTRIP_SERVER_HOST), (void **) &host);
         config_get_str_blob_alloc(CONF_ITEM(KEY_CONFIG_NTRIP_SERVER_PASSWORD), (void **) &password);
