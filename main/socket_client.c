@@ -27,6 +27,7 @@
 #include "socket_client.h"
 
 #include <config.h>
+#include <retry.h>
 
 static const char *TAG = "SOCKET_CLIENT";
 
@@ -51,7 +52,11 @@ static void socket_client_task(void *ctx) {
     if (status_led_color.rgba != 0) status_led = status_led_add(status_led_color.rgba, STATUS_LED_FADE, 500, 2000, 0);
     if (status_led != NULL) status_led->active = false;
 
+    retry_delay_handle_t delay_handle = retry_init(true, 5, 2000);
+
     while (true) {
+        retry_delay(delay_handle);
+
         wait_for_ip();
 
         char *host, *connect_message;
@@ -61,6 +66,7 @@ static void socket_client_task(void *ctx) {
         int socktype = config_get_bool1(CONF_ITEM(KEY_CONFIG_SOCKET_CLIENT_TYPE_TCP_UDP)) ? SOCK_STREAM : SOCK_DGRAM;
 
         ESP_LOGI(TAG, "Connecting to %s host %s:%d", SOCKTYPE_NAME(socktype), host, port);
+        uart_nmea("$PESP,SOCK,CLI,%s,CONNECTING,%s:%d,%s", SOCKTYPE_NAME(socktype), host, port);
         sock = connect_socket(host, port, socktype);
         ERROR_ACTION(TAG, sock == CONNECT_SOCKET_ERROR_RESOLVE, goto _error, "Could not resolve host");
         ERROR_ACTION(TAG, sock == CONNECT_SOCKET_ERROR_CONNECT, goto _error, "Could not connect to host");
@@ -70,7 +76,9 @@ static void socket_client_task(void *ctx) {
         ERROR_ACTION(TAG, err < 0, goto _error, "Could not send connection message: %d %s", errno, strerror(errno));
 
         ESP_LOGI(TAG, "Successfully connected to %s:%d", host, port);
-        uart_nmea("$PESP,SOCK,CLI,CONNECTED,%s:%d", host, port);
+        uart_nmea("$PESP,SOCK,CLI,%s,CONNECTED,%s:%d", SOCKTYPE_NAME(socktype), host, port);
+
+        retry_reset(delay_handle);
 
         if (status_led != NULL) status_led->active = true;
 
@@ -86,7 +94,7 @@ static void socket_client_task(void *ctx) {
         if (status_led != NULL) status_led->active = false;
 
         ESP_LOGW(TAG, "Disconnected from %s:%d: %d %s", host, port, errno, strerror(errno));
-        uart_nmea("$PESP,SOCK,CLI,DISCONNECTED,%s:%d", host, port);
+        uart_nmea("$PESP,SOCK,CLI,%s,DISCONNECTED,%s:%d", SOCKTYPE_NAME(socktype), host, port);
 
         _error:
         destroy_socket(&sock);

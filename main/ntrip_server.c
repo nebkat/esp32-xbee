@@ -22,6 +22,7 @@
 #include <wifi.h>
 #include <tasks.h>
 #include <status_led.h>
+#include <retry.h>
 #include "ntrip.h"
 #include "config.h"
 #include "util.h"
@@ -53,7 +54,11 @@ static void ntrip_server_task(void *ctx) {
     if (status_led_color.rgba != 0) status_led = status_led_add(status_led_color.rgba, STATUS_LED_FADE, 500, 2000, 0);
     if (status_led != NULL) status_led->active = false;
 
+    retry_delay_handle_t delay_handle = retry_init(true, 5, 2000);
+
     while (true) {
+        retry_delay(delay_handle);
+
         wait_for_ip();
 
         char *buffer = NULL;
@@ -65,8 +70,8 @@ static void ntrip_server_task(void *ctx) {
         config_get_str_blob_alloc(CONF_ITEM(KEY_CONFIG_NTRIP_SERVER_PASSWORD), (void **) &password);
         config_get_str_blob_alloc(CONF_ITEM(KEY_CONFIG_NTRIP_SERVER_MOUNTPOINT), (void **) &mountpoint);
 
-
         ESP_LOGI(TAG, "Connecting to %s:%d/%s", host, port, mountpoint);
+        uart_nmea("$PESP,NTRIP,SRV,CONNECTING,%s:%d,%s", host, port, mountpoint);
         sock = connect_socket(host, port, SOCK_STREAM);
         ERROR_ACTION(TAG, sock == CONNECT_SOCKET_ERROR_RESOLVE, goto _error, "Could not resolve host");
         ERROR_ACTION(TAG, sock == CONNECT_SOCKET_ERROR_CONNECT, goto _error, "Could not connect to host");
@@ -90,6 +95,8 @@ static void ntrip_server_task(void *ctx) {
 
         ESP_LOGI(TAG, "Successfully connected to %s:%d/%s", host, port, mountpoint);
         uart_nmea("$PESP,NTRIP,SRV,CONNECTED,%s:%d,%s", host, port, mountpoint);
+
+        retry_reset(delay_handle);
 
         if (status_led != NULL) status_led->active = true;
 

@@ -28,6 +28,7 @@
 #include <uart.h>
 #include <lwip/inet.h>
 #include <status_led.h>
+#include <retry.h>
 #include "wifi.h"
 #include "config.h"
 
@@ -46,7 +47,7 @@ static status_led_handle_t status_led_sta;
 static wifi_config_t config_ap;
 static wifi_config_t config_sta;
 
-static int sta_reconnect_attempts = 0;
+static retry_delay_handle_t delay_handle;
 
 static bool ap_active = false;
 static bool sta_active = false;
@@ -74,20 +75,11 @@ static void wifi_sta_status_task(void *ctx) {
 }
 
 static void wifi_sta_reconnect_task(void *ctx) {
-    int delay = 0;
     while (true) {
-        if (sta_reconnect_attempts == 0) delay = 0;
-        vTaskDelay(pdMS_TO_TICKS(delay * 1000));
+        int attempts = retry_delay(delay_handle);
 
-        sta_reconnect_attempts++;
-        if (sta_reconnect_attempts >= 5) {
-            if (delay == 0) delay = 1;
-            delay *= 2;
-            if (delay > 4096) delay = 4096;
-        }
-
-        ESP_LOGI(TAG, "Station Reconnecting: %s, attempts: %d, delay: %d", config_sta.sta.ssid, sta_reconnect_attempts, delay);
-        uart_nmea("$PESP,WIFI,STA,RECONNECTING,%s,%d,%ds", config_sta.sta.ssid, sta_reconnect_attempts, delay);
+        ESP_LOGI(TAG, "Station Reconnecting: %s, attempts: %d", config_sta.sta.ssid, attempts);
+        uart_nmea("$PESP,WIFI,STA,RECONNECTING,%s,%d", config_sta.sta.ssid, attempts);
 
         esp_wifi_connect();
 
@@ -117,7 +109,8 @@ static void handle_sta_connected(void *arg, esp_event_base_t base, int32_t event
     uart_nmea("$PESP,WIFI,STA,CONNECTED,%.*s", event->ssid_len, event->ssid);
 
     sta_connected = true;
-    sta_reconnect_attempts = 0;
+
+    retry_reset(delay_handle);
 
     // Tracking status
     if (sta_status_task != NULL) vTaskResume(sta_status_task);
@@ -260,6 +253,9 @@ void wifi_init() {
     wifi_init_config_t wifi_init_config = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&wifi_init_config));
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
+
+    // Reconnect delay timer
+    delay_handle = retry_init(true, 5, 2000);
 
     // SoftAP
     config_ap.ap.max_connection = 4;
