@@ -8,6 +8,12 @@
     <style>
         #table tbody {
             font-family: "Courier New", Courier, monospace;
+            white-space: pre;
+        }
+
+        #table tbody td {
+            padding-top: 3px;
+            padding-bottom: 3px;
         }
     </style>
     <script>
@@ -15,7 +21,7 @@
             var table = $("#table");
             var tbody = table.find('tbody');
 
-            var regex = /(?<level>[VDIWE]) \((?<time>\d+)\) (?<tag>[a-zA-Z_-]+): (?<comment>.*)/;
+            var regex = /(?<level>[VDIWE]) \((?<time>[\d:.]+)\) (?<tag>[a-zA-Z_-]+): (?<comment>.*)/;
 
             var update = function() {
                 $.get('log', function(data) {
@@ -25,9 +31,10 @@
                     setTimeout(update, 2500);
 
                     for (var line of lines) {
+
                         var match = line.match(regex);
 
-                        if (match === null && !line.empty()) {
+                        if (match === null) {
                             console.log("Discarded: " + line);
                             continue;
                         }
@@ -69,7 +76,7 @@
     </script>
 </head>
 <body class="bg-light">
-    <div class="container">
+    <div class="container-fluid">
         <div class="pt-5 text-center">
             <h2>ESP32 XBee Log</h2>
             <p class="lead">The device log will be loaded automatically below. Make sure that you have at most one log page open at a time. </p>
