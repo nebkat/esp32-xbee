@@ -15,15 +15,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <string.h>
 #include <web_server.h>
-#include <esp_app_trace.h>
-#include <mdns.h>
 #include <log.h>
 #include <status_led.h>
-#include <nmea.h>
-#include <lwip/inet.h>
 #include <socket_client.h>
+#include <esp_sntp.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_system.h"
@@ -31,7 +27,6 @@
 #include "driver/uart.h"
 #include "driver/ledc.h"
 #include "button.h"
-
 
 #include "config.h"
 #include "wifi.h"
@@ -55,6 +50,10 @@ static void reset_button_task() {
             }
         }
     }
+}
+
+static void sntp_time_set_handler(struct timeval *tv) {
+    ESP_LOGI(TAG, "Synced time from SNTP");
 }
 
 void app_main()
@@ -96,4 +95,12 @@ void app_main()
     socket_client_init();
 
     uart_nmea("$PESP,INIT,COMPLETE");
+
+    wait_for_ip();
+
+    sntp_setoperatingmode(SNTP_OPMODE_POLL);
+    sntp_setservername(0, "pool.ntp.org");
+    sntp_set_sync_mode(SNTP_SYNC_MODE_SMOOTH);
+    sntp_set_time_sync_notification_cb(sntp_time_set_handler);
+    sntp_init();
 }
