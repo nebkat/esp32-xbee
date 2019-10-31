@@ -75,9 +75,12 @@ void app_main()
 
     uart_nmea("$PESP,INIT,START,%s", PROJECT_VER);
 
-    ESP_LOGI(TAG, "Starting ESP32 XBee UART Interface");
-    ESP_LOGI(TAG, "Author: Nebojša Cvetković");
-    ESP_LOGI(TAG, "Source: https://github.com/nebkat/esp32-ntrip-server");
+    ESP_LOGI(TAG, "╔══════════════════════════════════════════════╗");
+    ESP_LOGI(TAG, "║ Starting ESP32 XBee UART Interface           ║");
+    ESP_LOGI(TAG, "║ Version: %-35s "                            "║", PROJECT_VER);
+    ESP_LOGI(TAG, "║ Author: Nebojša Cvetković                    ║");
+    ESP_LOGI(TAG, "║ Source: https://github.com/nebkat/esp32-xbee ║");
+    ESP_LOGI(TAG, "╚══════════════════════════════════════════════╝");
 
     esp_event_loop_create_default();
 
