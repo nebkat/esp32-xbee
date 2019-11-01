@@ -66,7 +66,7 @@ static void socket_client_task(void *ctx) {
         int socktype = config_get_bool1(CONF_ITEM(KEY_CONFIG_SOCKET_CLIENT_TYPE_TCP_UDP)) ? SOCK_STREAM : SOCK_DGRAM;
 
         ESP_LOGI(TAG, "Connecting to %s host %s:%d", SOCKTYPE_NAME(socktype), host, port);
-        uart_nmea("$PESP,SOCK,CLI,%s,CONNECTING,%s:%d,%s", SOCKTYPE_NAME(socktype), host, port);
+        uart_nmea("$PESP,SOCK,CLI,%s,CONNECTING,%s:%d", SOCKTYPE_NAME(socktype), host, port);
         sock = connect_socket(host, port, socktype);
         ERROR_ACTION(TAG, sock == CONNECT_SOCKET_ERROR_RESOLVE, goto _error, "Could not resolve host");
         ERROR_ACTION(TAG, sock == CONNECT_SOCKET_ERROR_CONNECT, goto _error, "Could not connect to host");
