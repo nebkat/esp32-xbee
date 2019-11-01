@@ -70,7 +70,18 @@ status_led_handle_t status_led_add(uint32_t rgba, status_led_flashing_mode_t fla
 
     color->active = true;
 
-    SLIST_INSERT_HEAD(&status_led_colors_list, color, next);
+    // Insert at tail
+    if (SLIST_EMPTY(&status_led_colors_list)) {
+        SLIST_INSERT_HEAD(&status_led_colors_list, color, next);
+    } else {
+        status_led_handle_t current, next;
+        SLIST_FOREACH_SAFE(current, &status_led_colors_list, next, next) {
+            if (next == NULL) {
+                SLIST_INSERT_AFTER(current, color, next);
+            }
+        }
+    }
+
     vTaskResume(led_task);
 
     return color;
