@@ -165,5 +165,6 @@ esp_err_t config_get_str_blob(const config_item_t *item, void *out_value, size_t
 esp_err_t config_get_primitive(const config_item_t *item, void *out_value);
 
 esp_err_t config_commit();
+void config_restart();
 
 #endif //ESP32_XBEE_CONFIG_H

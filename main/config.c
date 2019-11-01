@@ -23,6 +23,7 @@
 #include <esp_wifi_types.h>
 #include <driver/gpio.h>
 #include <uart.h>
+#include <tasks.h>
 #include "config.h"
 
 static const char *TAG = "CONFIG";
@@ -546,4 +547,13 @@ esp_err_t config_commit() {
     return nvs_commit(config_handle);
 }
 
+static void config_restart_task() {
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    esp_restart();
+}
 
+void config_restart() {
+    uart_nmea("$PESP,CFG,RESTARTING");
+
+    xTaskCreate(config_restart_task, "config_restart_task", 512, NULL, TASK_PRIORITY_MAX, NULL);
+}

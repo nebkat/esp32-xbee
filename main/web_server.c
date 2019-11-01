@@ -47,7 +47,7 @@ static esp_err_t www_spiffs_init() {
     esp_vfs_spiffs_conf_t conf = {
             .base_path = WWW_PARTITION_PATH,
             .partition_label = NULL,
-            .max_files = 5,   // This decides the maximum number of files that can be created on the storage
+            .max_files = 10,
             .format_if_mount_failed = true
     };
 
@@ -207,7 +207,7 @@ static esp_err_t file_get_handler(httpd_req_t *req) {
     set_content_type_from_file(req, filename);
 
     if (!IS_FILE_EXT(filename, ".html")) {
-        httpd_resp_set_hdr(req, "Cache-Control", "max-age=86400");
+        httpd_resp_set_hdr(req, "Cache-Control", "max-age=1800");
     }
 
     /* Retrieve the pointer to scratch buffer for temporary storage */
@@ -409,6 +409,7 @@ static esp_err_t config_post_handler(httpd_req_t *req) {
     cJSON_Delete(root);
 
     config_commit();
+    config_restart();
 
     root = cJSON_CreateObject();
     cJSON_AddBoolToObject(root, "success", true);

@@ -79,10 +79,17 @@
 
                 if (form[0].checkValidity() !== false) {
                     var submit = form.find(':submit').prop('disabled', true);
-                    $.post('config', JSON.stringify($(this).serializeObject()))
-                            .always(function() {
-                                submit.prop('disabled', false);
-                            });
+                    var data = JSON.stringify($(this).serializeObject());
+                    $.post('config', data).done(function() {
+                        $('#restarting-modal').modal('show');
+
+                        // Allow some time to reload
+                        setTimeout(function() {
+                            reloadOnStatus = true;
+                        }, 2500);
+                    }).always(function() {
+                        submit.prop('disabled', false);
+                    });
                 }
 
                 form.addClass('was-validated');
@@ -118,12 +125,12 @@
                         $(this).find('.card-body :input').each(function() {
                             if (disabled) {
                                 $(this).data('prop-disabled-previous', $(this).prop('disabled') === true)
-                                        .data('class-disabled-previous', $(this).hasClass('disabled'))
-                                        .prop('disabled', true)
-                                        .addClass('disabled');
+                                    .data('class-disabled-previous', $(this).hasClass('disabled'))
+                                    .prop('disabled', true)
+                                    .addClass('disabled');
                             } else {
                                 $(this).prop('disabled', $(this).data('prop-disabled-previous') === true)
-                                        .toggleClass('disabled', $(this).data('class-disabled-previous') === true);
+                                    .toggleClass('disabled', $(this).data('class-disabled-previous') === true);
                             }
                         })
                     }
@@ -177,8 +184,14 @@
             var wifiApStatusText = form.find('.wifi-ap-status');
             var wifiStaStatusText = form.find('.wifi-sta-status');
 
+            var reloadOnStatus = false;
+
             var wifiStatusUpdate = function() {
                 $.getJSON('wifi/status').done(function(data) {
+                    if (reloadOnStatus) {
+                        window.location.reload();
+                    }
+
                     wifiApStatusText.empty();
                     wifiStaStatusText.empty();
 
@@ -186,20 +199,20 @@
                         wifiApStatusText.text("Disabled");
                     } else {
                         wifiApStatusText.appendText(data.ap.ssid + (data.ap.authmode == 'OPEN' ? " (OPEN)" : ''))
-                                .appendText(" / ")
-                                .append($('<a>', {text: data.ap.ip4, href: 'http://' + data.ap.ip4 + '/'}))
-                                .appendText(" / ")
-                                .appendText(data.ap.devices + " device" + (data.ap.devices != 1 ? "s" : ''));
+                            .appendText(" / ")
+                            .append($('<a>', {text: data.ap.ip4, href: 'http://' + data.ap.ip4 + '/'}))
+                            .appendText(" / ")
+                            .appendText(data.ap.devices + " device" + (data.ap.devices != 1 ? "s" : ''));
                     }
 
                     if (!data.sta.connected) {
                         wifiStaStatusText.text("Not Connected");
                     } else {
                         wifiStaStatusText.appendText(data.sta.ssid + (data.sta.authmode == 'OPEN' ? " (OPEN)" : ''))
-                                .appendText(" / ")
-                                .append($('<a>', {text: data.sta.ip4, href: 'http://' + data.sta.ip4 + '/'}))
-                                .appendText(" / ")
-                                .append($('<span>', {class: 'text-' + wifiRssiColorClass(data.sta.rssi), text: data.sta.rssi + "dBm"}));
+                            .appendText(" / ")
+                            .append($('<a>', {text: data.sta.ip4, href: 'http://' + data.sta.ip4 + '/'}))
+                            .appendText(" / ")
+                            .append($('<span>', {class: 'text-' + wifiRssiColorClass(data.sta.rssi), text: data.sta.rssi + "dBm"}));
                     }
                 }).always(function() {
                     setTimeout(wifiStatusUpdate, 2500);
@@ -325,10 +338,10 @@
         <div class="pt-5 text-center">
             <h2>ESP32 XBee Config <small id="project-version" class="text-muted"></small></h2>
 
-            <p class="lead">Adjust the settings below and then click on "Save All" at the bottom of the page. The device will restart with the new settings applied. If you have adjusted WiFi settings the device may be moved onto a new IP address, or require you to reconnect to its access point.</p>
+            <p class="lead">Adjust the settings below and then click on "Submit". The device will restart with the new settings applied. If you have adjusted WiFi settings the device may be moved onto a new IP address, or require you to reconnect to its access point.</p>
         </div>
         <form class="needs-validation" id="form" novalidate>
-            <div class="row mb-5">
+            <div class="row mb-1">
                 <div class="col-xl-6">
                     <div class="card mb-3">
                         <div class="card-header">
@@ -638,7 +651,7 @@
                     </div>
                 </div>
             </div>
-            <div class="row mb-5">
+            <div class="row mb-3">
                 <div class="col">
                     <input type="submit" class="form-control">
                 </div>
@@ -877,6 +890,23 @@
                 </div>
             </div>
         </form>
+    </div>
+    <div class="modal fade" id="restarting-modal">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title">Waiting for restart...</h4>
+                </div>
+                <div class="modal-body">
+                    <p>The ESP32 XBee has been restarted to apply the new configuration.</p>
+                    <p>Please wait a few seconds, and this page will automatically reload.</p>
+                    <p>If you have made changes to the WiFi connection, or are using the ESP32's WiFi hotspot, you may need to check your device's WiFi connection, or read the new IP address from a serial terminal.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-danger" onclick="window.location.reload()">Reload</button>
+                </div>
+            </div>
+        </div>
     </div>
 </body>
 </html>
