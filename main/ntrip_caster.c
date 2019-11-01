@@ -111,8 +111,6 @@ static void ntrip_caster_task(void *ctx) {
     if (status_led_color.rgba != 0) status_led = status_led_add(status_led_color.rgba, STATUS_LED_STATIC, 500, 2000, 0);
 
     while (true) {
-        wait_for_ip();
-
         ntrip_caster_socket_init();
 
         char *mountpoint, *username, *password;

@@ -255,8 +255,6 @@ static void socket_server_task(void *ctx) {
     if (status_led != NULL) status_led->active = false;
 
     while (true) {
-        wait_for_ip();
-
         SLIST_INIT(&socket_client_list);
 
         socket_tcp_init();
