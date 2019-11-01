@@ -38,6 +38,8 @@
 
 static const char *TAG = "MAIN";
 
+static char *reset_reason_name(esp_reset_reason_t reason);
+
 static void reset_button_task() {
     QueueHandle_t button_queue = button_init(PIN_BIT(GPIO_NUM_0));
     gpio_set_pull_mode(GPIO_NUM_0, GPIO_PULLUP_ONLY);
@@ -62,11 +64,6 @@ void app_main()
     status_led_init();
     status_led_add(0xFFFFFF33, STATUS_LED_BLINK, 100, 1000, 0);
 
-    xTaskCreate(reset_button_task, "reset_button", 4096, NULL, TASK_PRIORITY_RESET_BUTTON, NULL);
-
-    config_init();
-    uart_init();
-
     log_init();
     esp_log_set_vprintf(log_vprintf);
     esp_log_level_set("gpio", ESP_LOG_WARN);
@@ -76,7 +73,12 @@ void app_main()
 
     core_dump_check();
 
-    uart_nmea("$PESP,INIT,START,%s", PROJECT_VER);
+    xTaskCreate(reset_button_task, "reset_button", 4096, NULL, TASK_PRIORITY_RESET_BUTTON, NULL);
+
+    config_init();
+    uart_init();
+
+    uart_nmea("$PESP,INIT,START,%s,%s", PROJECT_VER, reset_reason_name(esp_reset_reason()));
 
     ESP_LOGI(TAG, "╔══════════════════════════════════════════════╗");
     ESP_LOGI(TAG, "║ Starting ESP32 XBee UART Interface           ║");
@@ -109,4 +111,32 @@ void app_main()
     sntp_set_sync_mode(SNTP_SYNC_MODE_SMOOTH);
     sntp_set_time_sync_notification_cb(sntp_time_set_handler);
     sntp_init();
+}
+
+static char *reset_reason_name(esp_reset_reason_t reason) {
+    switch (reason) {
+        default:
+        case ESP_RST_UNKNOWN:
+            return "UNKNOWN";
+        case ESP_RST_POWERON:
+            return "POWERON";
+        case ESP_RST_EXT:
+            return "EXT";
+        case ESP_RST_SW:
+            return "SW";
+        case ESP_RST_PANIC:
+            return "PANIC";
+        case ESP_RST_INT_WDT:
+            return "INTERRUPT_WATCHDOG";
+        case ESP_RST_TASK_WDT:
+            return "TASK_WATCHDOG";
+        case ESP_RST_WDT:
+            return "OTHER_WATCHDOG";
+        case ESP_RST_DEEPSLEEP:
+            return "DEEPSLEEP";
+        case ESP_RST_BROWNOUT:
+            return "BROWNOUT";
+        case ESP_RST_SDIO:
+            return "SDIO";
+    }
 }
