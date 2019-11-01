@@ -1,5 +1,6 @@
 idf_component_register(SRCS "main.c"
 		"config.c"
+		"core_dump.c"
 		"log.c"
 		"nmea.c"
 		"ntrip_caster.c"

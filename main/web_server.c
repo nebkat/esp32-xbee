@@ -25,6 +25,7 @@
 #include <mdns.h>
 #include <config.h>
 #include <log.h>
+#include <core_dump.h>
 #include "web_server.h"
 
 /* Max length a file path can have on storage */
@@ -133,6 +134,37 @@ static esp_err_t log_get_handler(httpd_req_t *req) {
     httpd_resp_send(req, log_data, length);
 
     log_return(log_data);
+
+    return ESP_OK;
+}
+
+static esp_err_t core_dump_get_handler(httpd_req_t *req) {
+    size_t core_dump_size = core_dump_available();
+    if (core_dump_size == 0) {
+        httpd_resp_sendstr(req, "No core dump available");
+        return ESP_OK;
+    }
+
+    httpd_resp_set_type(req, "application/octet-stream");
+
+    time_t t = time(NULL);
+    char date[20];
+    strftime(date, sizeof(date), "%F_%T", localtime(&t));
+    char *content_disposition;
+    asprintf(&content_disposition, "attachment; filename=\"esp32_xbee_core_dump_%s.bin\"", date);
+    httpd_resp_set_hdr(req, "Content-Disposition", content_disposition);
+
+    for (size_t offset = 0; offset < core_dump_size; offset += BUFFER_SIZE) {
+        size_t read = core_dump_size - offset;
+        if (read > BUFFER_SIZE) read = BUFFER_SIZE;
+
+        core_dump_read(offset, buffer, read);
+        httpd_resp_send_chunk(req, buffer, read);
+    }
+
+    httpd_resp_send_chunk(req, NULL, 0);
+
+    free(content_disposition);
 
     return ESP_OK;
 }
@@ -474,6 +506,7 @@ static httpd_handle_t web_server_start(void)
         register_uri_handler(server, "/config", HTTP_POST, config_post_handler, NULL);
 
         register_uri_handler(server, "/log", HTTP_GET, log_get_handler, NULL);
+        register_uri_handler(server, "/core_dump", HTTP_GET, core_dump_get_handler, NULL);
 
         register_uri_handler(server, "/wifi/status", HTTP_GET, wifi_status_get_handler, NULL);
         register_uri_handler(server, "/wifi/scan", HTTP_GET, wifi_scan_get_handler, NULL);

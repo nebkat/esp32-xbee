@@ -20,6 +20,7 @@
 #include <status_led.h>
 #include <socket_client.h>
 #include <esp_sntp.h>
+#include <core_dump.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_system.h"
@@ -72,6 +73,8 @@ void app_main()
     esp_log_level_set("system_api", ESP_LOG_WARN);
     esp_log_level_set("wifi", ESP_LOG_WARN);
     esp_log_level_set("tcpip_adapter", ESP_LOG_WARN);
+
+    core_dump_check();
 
     uart_nmea("$PESP,INIT,START,%s", PROJECT_VER);
 
