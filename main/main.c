@@ -126,9 +126,9 @@ static char *reset_reason_name(esp_reset_reason_t reason) {
         case ESP_RST_POWERON:
             return "POWERON";
         case ESP_RST_EXT:
-            return "EXT";
+            return "EXTERNAL";
         case ESP_RST_SW:
-            return "SW";
+            return "SOFTWARE";
         case ESP_RST_PANIC:
             return "PANIC";
         case ESP_RST_INT_WDT:
