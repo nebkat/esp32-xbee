@@ -33,6 +33,7 @@ void wifi_ap_status(wifi_ap_status_t *status);
 void wifi_sta_status(wifi_sta_status_t *status);
 
 void wait_for_ip();
+void wait_for_network();
 
 char *tcpip_if_name(tcpip_adapter_if_t tcpip_if);
 char * wifi_auth_mode_name(wifi_auth_mode_t auth_mode);

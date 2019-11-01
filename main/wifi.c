@@ -35,8 +35,9 @@
 static const char *TAG = "WIFI";
 
 static EventGroupHandle_t wifi_event_group;
-const int WIFI_IPV4_BIT = BIT0;
-const int WIFI_IPV6_BIT = BIT1;
+const int WIFI_STA_GOT_IPV4_BIT = BIT0;
+const int WIFI_STA_GOT_IPV6_BIT = BIT1;
+const int WIFI_AP_STA_CONNECTED_BIT = BIT2;
 
 static TaskHandle_t sta_status_task = NULL;
 static TaskHandle_t sta_reconnect_task = NULL;
@@ -155,8 +156,8 @@ static void handle_sta_disconnected(void *arg, esp_event_base_t base, int32_t ev
     // Disable RSSI led
     rssi_led_set(0);
 
-    xEventGroupClearBits(wifi_event_group, WIFI_IPV4_BIT);
-    xEventGroupClearBits(wifi_event_group, WIFI_IPV6_BIT);
+    xEventGroupClearBits(wifi_event_group, WIFI_STA_GOT_IPV4_BIT);
+    xEventGroupClearBits(wifi_event_group, WIFI_STA_GOT_IPV6_BIT);
 
     if (status_led_sta != NULL) status_led_sta->flashing_mode = STATUS_LED_STATIC;
 }
@@ -190,6 +191,8 @@ static void handle_ap_sta_connected(void *arg, esp_event_base_t base, int32_t ev
     ESP_LOGI(TAG, "WIFI_EVENT_AP_STACONNECTED: mac: " MACSTR, MAC2STR(event->mac));
     uart_nmea("$PESP,WIFI,AP,STA_CONNECTED," MACSTR, MAC2STR(event->mac));
 
+    xEventGroupSetBits(wifi_event_group, WIFI_AP_STA_CONNECTED_BIT);
+
     if (status_led_ap != NULL) status_led_ap->flashing_mode = STATUS_LED_FADE;
 }
 
@@ -202,7 +205,11 @@ static void handle_ap_sta_disconnected(void *arg, esp_event_base_t base, int32_t
     wifi_sta_list_t ap_sta_list;
     esp_wifi_ap_get_sta_list(&ap_sta_list);
 
-    if (status_led_ap != NULL && ap_sta_list.num == 0) status_led_ap->flashing_mode = STATUS_LED_STATIC;
+    if (ap_sta_list.num == 0) {
+        xEventGroupClearBits(wifi_event_group, WIFI_AP_STA_CONNECTED_BIT);
+
+        if (status_led_ap != NULL) status_led_ap->flashing_mode = STATUS_LED_STATIC;
+    }
 }
 
 static void handle_sta_got_ip(void *arg, esp_event_base_t base, int32_t event_id, void *event_data) {
@@ -217,14 +224,14 @@ static void handle_sta_got_ip(void *arg, esp_event_base_t base, int32_t event_id
             ffs(~event->ip_info.netmask.addr) - 1,
             IP2STR(&event->ip_info.gw));
 
-    xEventGroupSetBits(wifi_event_group, WIFI_IPV4_BIT);
+    xEventGroupSetBits(wifi_event_group, WIFI_STA_GOT_IPV4_BIT);
 }
 
 static void handle_sta_lost_ip(void *arg, esp_event_base_t base, int32_t event_id, void *event_data) {
     ESP_LOGI(TAG, "IP_EVENT_STA_LOST_IP");
     uart_nmea("$PESP,WIFI,STA,IP_LOST");
 
-    xEventGroupClearBits(wifi_event_group, WIFI_IPV4_BIT);
+    xEventGroupClearBits(wifi_event_group, WIFI_STA_GOT_IPV4_BIT);
 }
 
 static void handle_ap_sta_ip_assigned(void *arg, esp_event_base_t base, int32_t event_id, void *event_data) {
@@ -241,11 +248,15 @@ static void handle_got_ip6(void *arg, esp_event_base_t base, int32_t event_id, v
     // Disable IPv6 link-local logging
     // uart_nmea("$PESP,WIFI,%s,IP6," IPV6STR, tcpip_if_name(event->if_index), IPV62STR(event->ip6_info.ip));
 
-    xEventGroupSetBits(wifi_event_group, WIFI_IPV6_BIT);
+    xEventGroupSetBits(wifi_event_group, WIFI_STA_GOT_IPV6_BIT);
 }
 
 void wait_for_ip() {
-    xEventGroupWaitBits(wifi_event_group, WIFI_IPV4_BIT, false, false, portMAX_DELAY);
+    xEventGroupWaitBits(wifi_event_group, WIFI_STA_GOT_IPV4_BIT, false, false, portMAX_DELAY);
+}
+
+void wait_for_network() {
+    xEventGroupWaitBits(wifi_event_group, WIFI_STA_GOT_IPV4_BIT | WIFI_AP_STA_CONNECTED_BIT, false, false, portMAX_DELAY);
 }
 
 void wifi_init() {
