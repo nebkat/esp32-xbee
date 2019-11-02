@@ -5,7 +5,7 @@
 
 ESP_EVENT_DECLARE_BASE(UART_EVENTS);
 
-#define UART_BUFFER_SIZE 8192
+#define UART_BUFFER_SIZE 4096
 
 typedef struct uart_data {
     int len;

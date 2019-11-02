@@ -555,5 +555,5 @@ static void config_restart_task() {
 void config_restart() {
     uart_nmea("$PESP,CFG,RESTARTING");
 
-    xTaskCreate(config_restart_task, "config_restart_task", 512, NULL, TASK_PRIORITY_MAX, NULL);
+    xTaskCreate(config_restart_task, "config_restart_task", 4096, NULL, TASK_PRIORITY_MAX, NULL);
 }

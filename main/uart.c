@@ -75,7 +75,7 @@ void uart_init() {
     ));
     ESP_ERROR_CHECK(uart_driver_install(uart_port, UART_BUFFER_SIZE, UART_BUFFER_SIZE, 0, NULL, 0));
 
-    xTaskCreate(uart_task, "uart_task", 16384, NULL, TASK_PRIORITY_UART, NULL);
+    xTaskCreate(uart_task, "uart_task", 8192, NULL, TASK_PRIORITY_UART, NULL);
 }
 
 void uart_task(void *ctx) {

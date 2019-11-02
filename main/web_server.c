@@ -32,7 +32,7 @@
 #define FILE_PATH_MAX (ESP_VFS_PATH_MAX + CONFIG_SPIFFS_OBJ_NAME_LEN)
 
 #define WWW_PARTITION_PATH "/www"
-#define BUFFER_SIZE 8192
+#define BUFFER_SIZE 2048
 
 static const char *TAG = "WEB";
 
@@ -120,6 +120,27 @@ static char* get_path_from_uri(char *dest, const char *base_path, const char *ur
     return dest + base_pathlen;
 }
 
+static esp_err_t json_response(httpd_req_t *req, cJSON *root) {
+    // Set mime type
+    esp_err_t err = httpd_resp_set_type(req, "application/json");
+    if (err != ESP_OK) return err;
+
+    // Convert to string
+    bool success = cJSON_PrintPreallocated(root, buffer, BUFFER_SIZE, false);
+    cJSON_Delete(root);
+    if (!success) {
+        ESP_LOGE(TAG, "Not enough space in buffer to output JSON");
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Not enough space in buffer to output JSON");
+        return ESP_FAIL;
+    }
+
+    // Send as response
+    err = httpd_resp_send(req, buffer, strlen(buffer));
+    if (err != ESP_OK) return err;
+
+    return ESP_OK;
+}
+
 static esp_err_t log_get_handler(httpd_req_t *req) {
     httpd_resp_set_type(req, "text/plain");
 
@@ -167,6 +188,23 @@ static esp_err_t core_dump_get_handler(httpd_req_t *req) {
     free(content_disposition);
 
     return ESP_OK;
+}
+
+static esp_err_t heap_info_get_handler(httpd_req_t *req) {
+    multi_heap_info_t info;
+    heap_caps_get_info(&info, MALLOC_CAP_DEFAULT);
+
+    cJSON *root = cJSON_CreateObject();
+
+    cJSON_AddNumberToObject(root, "total_free_bytes", info.total_free_bytes);
+    cJSON_AddNumberToObject(root, "total_allocated_bytes", info.total_allocated_bytes);
+    cJSON_AddNumberToObject(root, "largest_free_block", info.largest_free_block);
+    cJSON_AddNumberToObject(root, "minimum_free_bytes", info.minimum_free_bytes);
+    cJSON_AddNumberToObject(root, "allocated_blocks", info.allocated_blocks);
+    cJSON_AddNumberToObject(root, "free_blocks", info.free_blocks);
+    cJSON_AddNumberToObject(root, "total_blocks", info.total_blocks);
+
+    return json_response(req, root);
 }
 
 static esp_err_t file_get_handler(httpd_req_t *req) {
@@ -233,29 +271,9 @@ static esp_err_t file_get_handler(httpd_req_t *req) {
 
     /* Close file after sending complete */
     fclose(fd);
-    ESP_LOGI(TAG, "File sending complete");
 
     /* Respond with an empty chunk to signal HTTP response completion */
     httpd_resp_send_chunk(req, NULL, 0);
-    return ESP_OK;
-}
-
-static esp_err_t json_response(httpd_req_t *req, cJSON *root) {
-    // Set mime type
-    esp_err_t err = httpd_resp_set_type(req, "application/json");
-    if (err != ESP_OK) return err;
-
-    // Convert to string
-    char *json = cJSON_Print(root);
-
-    // Send as response
-    err = httpd_resp_send(req, json, strlen(json));
-    if (err != ESP_OK) return err;
-
-    // Free resources
-    cJSON_Delete(root);
-    free(json);
-
     return ESP_OK;
 }
 
@@ -494,7 +512,7 @@ static httpd_handle_t web_server_start(void)
 {
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.max_open_sockets = 2;
+    config.max_open_sockets = 1;
     config.uri_match_fn = httpd_uri_match_wildcard;
 
     // Start the httpd server
@@ -508,6 +526,7 @@ static httpd_handle_t web_server_start(void)
 
         register_uri_handler(server, "/log", HTTP_GET, log_get_handler, NULL);
         register_uri_handler(server, "/core_dump", HTTP_GET, core_dump_get_handler, NULL);
+        register_uri_handler(server, "/heap_info", HTTP_GET, heap_info_get_handler, NULL);
 
         register_uri_handler(server, "/wifi/status", HTTP_GET, wifi_status_get_handler, NULL);
         register_uri_handler(server, "/wifi/scan", HTTP_GET, wifi_scan_get_handler, NULL);

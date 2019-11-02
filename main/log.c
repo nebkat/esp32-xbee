@@ -27,7 +27,7 @@ static const char *TAG = "LOG";
 static RingbufHandle_t ringbuf_handle;
 
 esp_err_t log_init() {
-    ringbuf_handle = xRingbufferCreate(32768, RINGBUF_TYPE_BYTEBUF);
+    ringbuf_handle = xRingbufferCreate(4096, RINGBUF_TYPE_BYTEBUF);
     if (ringbuf_handle == NULL) {
         ESP_LOGE(TAG, "Could not create log ring buffer");
         return ESP_FAIL;

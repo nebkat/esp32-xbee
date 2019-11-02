@@ -62,7 +62,7 @@ static void sntp_time_set_handler(struct timeval *tv) {
 void app_main()
 {
     status_led_init();
-    status_led_add(0xFFFFFF33, STATUS_LED_BLINK, 100, 1000, 0);
+    status_led_handle_t status_led = status_led_add(0xFFFFFF33, STATUS_LED_BLINK, 100, 1000, 0);
 
     log_init();
     esp_log_set_vprintf(log_vprintf);
@@ -100,6 +100,15 @@ void app_main()
 
     web_server_init();
 
+    if (reset_reason != ESP_RST_POWERON && reset_reason != ESP_RST_SW) {
+        status_led->active = false;
+        status_led_handle_t error_led = status_led_add(0xFF000033, STATUS_LED_BLINK, 50, 10000, 0);
+
+        vTaskDelay(pdMS_TO_TICKS(10000));
+
+        status_led_remove(error_led);
+    }
+
     ntrip_caster_init();
     ntrip_server_init();
     ntrip_client_init();
@@ -116,6 +125,19 @@ void app_main()
     sntp_set_sync_mode(SNTP_SYNC_MODE_SMOOTH);
     sntp_set_time_sync_notification_cb(sntp_time_set_handler);
     sntp_init();
+
+#ifdef DEBUG_HEAP
+    while (true) {
+        vTaskDelay(pdMS_TO_TICKS(2000));
+
+        multi_heap_info_t info;
+        heap_caps_get_info(&info, MALLOC_CAP_DEFAULT);
+
+        uart_nmea("$PESP,HEAP,FREE,%d/%d,%d%%", info.total_free_bytes,
+                info.total_allocated_bytes + info.total_free_bytes,
+                100 * info.total_free_bytes / (info.total_allocated_bytes + info.total_free_bytes));
+    }
+#endif
 }
 
 static char *reset_reason_name(esp_reset_reason_t reason) {

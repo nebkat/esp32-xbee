@@ -109,5 +109,5 @@ static void socket_client_task(void *ctx) {
 void socket_client_init() {
     if (!config_get_bool1(CONF_ITEM(KEY_CONFIG_SOCKET_CLIENT_ACTIVE))) return;
 
-    xTaskCreate(socket_client_task, "socket_client_task", 32768, NULL, 2, NULL);
+    xTaskCreate(socket_client_task, "socket_client_task", 4096, NULL, 2, NULL);
 }
