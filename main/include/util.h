@@ -2,10 +2,12 @@
 #define ESP32_XBEE_UTIL_H
 
 #include <esp_transport.h>
-
 #include <sys/socket.h>
 
+#include <uart.h>
+
 #define PRINT_LINE printf("%s:%d %s\n", __FILE__, __LINE__, __func__)
+#define UART_PRINT_LINE uart_nmea("$PESP,DBG,%s,%d,%s", __FILE__, __LINE__, __func__)
 
 #define ERROR_ACTION(TAG, condition, action, format, ... ) if ((condition)) {             \
             ESP_LOGE(TAG, "%s:%d (%s): " format, __FILE__, __LINE__, __FUNCTION__,  ##__VA_ARGS__); \
