@@ -32,6 +32,23 @@ static const char *STORAGE = "config";
 nvs_handle_t config_handle;
 
 const config_item_t CONFIG_ITEMS[] = {
+        // Admin
+        {
+                .key = KEY_CONFIG_ADMIN_AUTH,
+                .type = CONFIG_ITEM_TYPE_INT8,
+                .def.int8 = 0
+        },
+        {
+                .key = KEY_CONFIG_ADMIN_USERNAME,
+                .type = CONFIG_ITEM_TYPE_STRING,
+                .def.str = ""
+        }, {
+                .key = KEY_CONFIG_ADMIN_PASSWORD,
+                .type = CONFIG_ITEM_TYPE_STRING,
+                .secret = true,
+                .def.str = ""
+        },
+
         // Bluetooth
         {
                 .key = KEY_CONFIG_BLUETOOTH_ACTIVE,

@@ -26,6 +26,8 @@
 #include <config.h>
 #include <log.h>
 #include <core_dump.h>
+#include <util.h>
+#include <lwip/inet.h>
 #include "web_server.h"
 
 /* Max length a file path can have on storage */
@@ -37,6 +39,15 @@
 static const char *TAG = "WEB";
 
 static char *buffer;
+
+enum auth_method {
+    AUTH_METHOD_OPEN = 0,
+    AUTH_METHOD_HOTSPOT = 1,
+    AUTH_METHOD_BASIC = 2
+};
+
+static char *basic_authentication;
+static enum auth_method auth_method;
 
 #define IS_FILE_EXT(filename, ext) \
     (strcasecmp(&filename[strlen(filename) - sizeof(ext) + 1], ext) == 0)
@@ -141,7 +152,61 @@ static esp_err_t json_response(httpd_req_t *req, cJSON *root) {
     return ESP_OK;
 }
 
+static esp_err_t basic_auth(httpd_req_t *req) {
+    int authorization_length = httpd_req_get_hdr_value_len(req, "Authorization") + 1;
+    if (authorization_length == 0) goto _auth_required;
+
+    char *authorization_header = malloc(authorization_length);
+    httpd_req_get_hdr_value_str(req, "Authorization", authorization_header, authorization_length);
+
+    bool authenticated = strcasecmp(basic_authentication, authorization_header) == 0;
+    free(authorization_header);
+
+    if (authenticated) return ESP_OK;
+
+    _auth_required:
+    httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic realm=\"ESP32 XBee Config\"");
+    httpd_resp_set_status(req, "401"); // Unauthorized
+    char *unauthorized = "401 Unauthorized - Incorrect or no password provided";
+    httpd_resp_send(req, unauthorized, strlen(unauthorized));
+    return ESP_FAIL;
+}
+
+static esp_err_t hotspot_auth(httpd_req_t *req) {
+    int sock = httpd_req_to_sockfd(req);
+
+    struct sockaddr_in6 client_addr;
+    socklen_t socklen = sizeof(client_addr);
+    getpeername(sock, (struct sockaddr *)&client_addr, &socklen);
+
+    // TODO: Correctly read IPv4?
+    // ERROR_ACTION(TAG, client_addr.sin6_family != AF_INET, goto _auth_error, "IPv6 connections not supported, IP family %d", client_addr.sin6_family);
+
+    wifi_sta_list_t *ap_sta_list = wifi_ap_sta_list();
+    tcpip_adapter_sta_list_t tcpip_ap_sta_list;
+    tcpip_adapter_get_sta_list(ap_sta_list, &tcpip_ap_sta_list);
+
+    // TODO: Correctly read IPv4?
+    for (int i = 0; i < tcpip_ap_sta_list.num; i++) {
+        if (tcpip_ap_sta_list.sta[i].ip.addr == client_addr.sin6_addr.un.u32_addr[3]) return ESP_OK;
+    }
+
+    //_auth_error:
+    httpd_resp_set_status(req, "401"); // Unauthorized
+    char *unauthorized = "401 Unauthorized - Configured to only accept connections from hotspot devices";
+    httpd_resp_send(req, unauthorized, strlen(unauthorized));
+    return ESP_FAIL;
+}
+
+static esp_err_t check_auth(httpd_req_t *req) {
+    if (auth_method == AUTH_METHOD_HOTSPOT) return hotspot_auth(req);
+    if (auth_method == AUTH_METHOD_BASIC) return basic_auth(req);
+    return ESP_OK;
+}
+
 static esp_err_t log_get_handler(httpd_req_t *req) {
+    if (check_auth(req) == ESP_FAIL) return ESP_FAIL;
+
     httpd_resp_set_type(req, "text/plain");
 
     size_t length;
@@ -160,6 +225,8 @@ static esp_err_t log_get_handler(httpd_req_t *req) {
 }
 
 static esp_err_t core_dump_get_handler(httpd_req_t *req) {
+    if (check_auth(req) == ESP_FAIL) return ESP_FAIL;
+
     size_t core_dump_size = core_dump_available();
     if (core_dump_size == 0) {
         httpd_resp_sendstr(req, "No core dump available");
@@ -191,6 +258,8 @@ static esp_err_t core_dump_get_handler(httpd_req_t *req) {
 }
 
 static esp_err_t heap_info_get_handler(httpd_req_t *req) {
+    if (check_auth(req) == ESP_FAIL) return ESP_FAIL;
+
     multi_heap_info_t info;
     heap_caps_get_info(&info, MALLOC_CAP_DEFAULT);
 
@@ -208,6 +277,8 @@ static esp_err_t heap_info_get_handler(httpd_req_t *req) {
 }
 
 static esp_err_t file_get_handler(httpd_req_t *req) {
+    if (check_auth(req) == ESP_FAIL) return ESP_FAIL;
+
     char filepath[FILE_PATH_MAX];
     FILE *fd = NULL;
     struct stat file_stat;
@@ -224,6 +295,8 @@ static esp_err_t file_get_handler(httpd_req_t *req) {
     /* If name has trailing '/', respond with directory contents */
     if (filename[strlen(filename) - 1] == '/' && strlen(filename) + strlen("index.html") < FILE_PATH_MAX) {
         strcpy(&filename[strlen(filename)], "index.html");
+
+        httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
     }
 
     if (stat(filepath, &file_stat) == -1) {
@@ -278,6 +351,8 @@ static esp_err_t file_get_handler(httpd_req_t *req) {
 }
 
 static esp_err_t config_get_handler(httpd_req_t *req) {
+    if (check_auth(req) == ESP_FAIL) return ESP_FAIL;
+
     cJSON *root = cJSON_CreateObject();
 
     cJSON_AddStringToObject(root, "version", PROJECT_VER);
@@ -340,6 +415,8 @@ static esp_err_t config_get_handler(httpd_req_t *req) {
 }
 
 static esp_err_t config_post_handler(httpd_req_t *req) {
+    if (check_auth(req) == ESP_FAIL) return ESP_FAIL;
+
     int ret = httpd_req_recv(req, buffer, BUFFER_SIZE - 1);
     if (ret <= 0) {
         if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
@@ -436,6 +513,8 @@ static esp_err_t config_post_handler(httpd_req_t *req) {
 }
 
 static esp_err_t wifi_status_get_handler(httpd_req_t *req) {
+    if (check_auth(req) == ESP_FAIL) return ESP_FAIL;
+
     wifi_ap_status_t ap_status;
     wifi_sta_status_t sta_status;
 
@@ -480,6 +559,8 @@ static esp_err_t wifi_status_get_handler(httpd_req_t *req) {
 }
 
 static esp_err_t wifi_scan_get_handler(httpd_req_t *req) {
+    if (check_auth(req) == ESP_FAIL) return ESP_FAIL;
+
     uint16_t ap_count;
     wifi_ap_record_t *ap_records =  wifi_scan(&ap_count);
 
@@ -510,9 +591,18 @@ static esp_err_t register_uri_handler(httpd_handle_t server, const char *path, h
 
 static httpd_handle_t web_server_start(void)
 {
+    config_get_primitive(CONF_ITEM(KEY_CONFIG_ADMIN_AUTH), &auth_method);
+    if (auth_method == AUTH_METHOD_BASIC) {
+        char *username, *password;
+        config_get_str_blob_alloc(CONF_ITEM(KEY_CONFIG_ADMIN_USERNAME), (void **) &username);
+        config_get_str_blob_alloc(CONF_ITEM(KEY_CONFIG_ADMIN_PASSWORD), (void **) &password);
+        basic_authentication = http_auth_basic_header(username, password);
+        free(username);
+        free(password);
+    }
+
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.max_open_sockets = 1;
     config.uri_match_fn = httpd_uri_match_wildcard;
 
     // Start the httpd server

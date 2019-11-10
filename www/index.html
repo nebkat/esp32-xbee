@@ -351,20 +351,20 @@
                             <div class="form-row mb-3">
                                 <div class="col-4">
                                     <label>Auth method</label>
-                                    <select name="admin_auth_method" class="custom-select">
-                                        <option value="0" selected>Open (dangerous)</option>
-                                        <option value="1">Button press</option>
-                                        <option value="2">Hotspot devices only</option>
-                                        <option value="3">Username/password</option>
+                                    <select name="adm_auth" class="custom-select">
+                                        <option value="0" selected>Open</option>
+                                        <option value="1">Hotspot devices only</option>
+                                        <option value="2">Username/password</option>
+                                        <!--<option value="3">Button press</option>-->
                                     </select>
                                 </div>
                                 <div class="col-4">
                                     <label>Username</label>
-                                    <input type="text" name="admin_username" data-disable-if="select[name='admin_auth_method'] > option[value!='3']" data-disable-if-condition=":selected" class="form-control" maxlength="32" required/>
+                                    <input type="text" name="adm_user" data-disable-if="select[name='adm_auth'] > option[value!='2']" data-disable-if-condition=":selected" class="form-control" maxlength="32" required/>
                                 </div>
                                 <div class="col-4">
                                     <label>Password</label>
-                                    <input type="password" name="admin_password" data-disable-if="select[name='admin_auth_method'] > option[value!='3']" data-disable-if-condition=":selected" class="form-control" maxlength="64" required/>
+                                    <input type="password" name="adm_pass" data-disable-if="select[name='adm_auth'] > option[value!='2']" data-disable-if-condition=":selected" class="form-control" maxlength="64" required/>
                                 </div>
                             </div>
                         </div>

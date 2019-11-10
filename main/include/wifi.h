@@ -29,6 +29,8 @@ void wifi_init();
 
 wifi_ap_record_t * wifi_scan(uint16_t *number);
 
+wifi_sta_list_t *wifi_ap_sta_list();
+
 void wifi_ap_status(wifi_ap_status_t *status);
 void wifi_sta_status(wifi_sta_status_t *status);
 

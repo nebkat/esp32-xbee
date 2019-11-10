@@ -57,6 +57,11 @@ typedef struct config_item {
 
 #define CONFIG_VALUE_UNCHANGED "\x1a\x1a\x1a\x1a\x1a\x1a\x1a\x1a"
 
+// Admin
+#define KEY_CONFIG_ADMIN_AUTH "adm_auth"
+#define KEY_CONFIG_ADMIN_USERNAME "adm_user"
+#define KEY_CONFIG_ADMIN_PASSWORD "adm_pass"
+
 // Bluetooth
 #define KEY_CONFIG_BLUETOOTH_ACTIVE "bt_active"
 #define KEY_CONFIG_BLUETOOTH_DEVICE_NAME "bt_dev_name"

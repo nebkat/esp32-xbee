@@ -55,6 +55,7 @@ static bool sta_active = false;
 
 static bool sta_connected;
 static wifi_ap_record_t sta_ap_info;
+static wifi_sta_list_t ap_sta_list;
 
 static void wifi_sta_status_task(void *ctx) {
     uint8_t rssi_duty = 0;
@@ -202,9 +203,7 @@ static void handle_ap_sta_disconnected(void *arg, esp_event_base_t base, int32_t
     ESP_LOGI(TAG, "WIFI_EVENT_AP_STADISCONNECTED: mac: " MACSTR, MAC2STR(event->mac));
     uart_nmea("$PESP,WIFI,AP,STA_DISCONNECTED," MACSTR, MAC2STR(event->mac));
 
-    wifi_sta_list_t ap_sta_list;
-    esp_wifi_ap_get_sta_list(&ap_sta_list);
-
+    wifi_ap_sta_list();
     if (ap_sta_list.num == 0) {
         xEventGroupClearBits(wifi_event_group, WIFI_AP_STA_CONNECTED_BIT);
 
@@ -365,6 +364,11 @@ void wifi_init() {
     ESP_ERROR_CHECK(esp_wifi_start());
 }
 
+wifi_sta_list_t *wifi_ap_sta_list() {
+    esp_wifi_ap_get_sta_list(&ap_sta_list);
+    return &ap_sta_list;
+}
+
 void wifi_ap_status(wifi_ap_status_t *status) {
     status->active = ap_active;
     if (!ap_active) return;
@@ -372,8 +376,7 @@ void wifi_ap_status(wifi_ap_status_t *status) {
     memcpy(status->ssid, config_ap.ap.ssid, sizeof(config_ap.ap.ssid));
     status->authmode = config_ap.ap.authmode;
 
-    wifi_sta_list_t ap_sta_list;
-    esp_wifi_ap_get_sta_list(&ap_sta_list);
+    wifi_ap_sta_list();
     status->devices = ap_sta_list.num;
 
     tcpip_adapter_ip_info_t ip_info;
