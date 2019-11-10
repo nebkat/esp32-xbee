@@ -143,10 +143,13 @@
 
             form.find(":input").on('change', checkDisableIfs);
 
-            $.getJSON('config').done(function(data) {
-                $('#project-version').text(data.version);
+            var projectVersionText = $('#project-version');
 
-                let current_version = parseInt(data.version.substring(0, data.version.indexOf('-')).replace(/[^\d]/g, ""));
+            $.getJSON('config').done(function(data) {
+                projectVersionText.text(data.version);
+
+                if (data.version.includes('-')) data.version = data.version.substring(0, data.version.indexOf('-'));
+                let current_version = parseInt(data.version.replace(/[^\d]/g, ""));
                 $.getJSON(releases_api_url, function(data) {
                     if (typeof data === 'undefined') return;
 
@@ -159,12 +162,18 @@
                         break;
                     }
 
-                    if (latest_version <= current_version) return;
+                    if (latest_version < current_version) return;
 
-                    $('#project-version').attr('href', release_url)
-                        .removeClass('text-muted')
-                        .addClass('text-warning')
-                        .appendText(" (old)");
+                    projectVersionText.attr('href', release_url)
+                        .removeClass('text-muted');
+
+                    if (latest_version === current_version) {
+                        projectVersionText.addClass('text-success')
+                            .appendText(' (latest)');
+                    } else {
+                        projectVersionText.addClass('text-warning')
+                            .appendText(" (old)");
+                    }
                 });
 
                 form.find(':input').each(function() {
