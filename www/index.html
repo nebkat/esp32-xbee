@@ -35,6 +35,8 @@
         }
     </style>
     <script>
+        var releases_api_url = 'https://api.github.com/repos/nebkat/esp32-xbee/releases';
+
         $.fn.serializeObject = function() {
             var o = {};
             var a = this.serializeArray();
@@ -144,6 +146,27 @@
             $.getJSON('config').done(function(data) {
                 $('#project-version').text(data.version);
 
+                let current_version = parseInt(data.version.replace(/[^\d]/g, ""));
+                $.getJSON(releases_api_url, function(data) {
+                    if (typeof data === 'undefined') return;
+
+                    let latest_version = 0;
+                    let release_url = null;
+                    for (const release of data) {
+                        if (release.prerelease) continue;
+                        latest_version = parseInt(release.tag_name.replace(/[^\d]/g, ""));
+                        release_url = release.html_url;
+                        break;
+                    }
+
+                    if (latest_version <= current_version) return;
+
+                    $('#project-version').attr('href', release_url)
+                        .removeClass('text-muted')
+                        .addClass('text-warning')
+                        .appendText(" (old)");
+                });
+
                 form.find(':input').each(function() {
                     if (!this.name || typeof data[this.name] === 'undefined') return;
 
@@ -163,7 +186,6 @@
 
                     // Reformat values when needed
                     if ($this.data('formatted')) $this.trigger('change');
-
                 });
 
                 checkDisableIfs();
@@ -336,7 +358,7 @@
 <body class="bg-light">
     <div class="container">
         <div class="pt-5 text-center">
-            <h2>ESP32 XBee Config <small id="project-version" class="text-muted"></small></h2>
+            <h2>ESP32 XBee Config <a id="project-version" href="https://github.com/nebkat/esp32-xbee/releases" class="text-muted small"></a></h2>
 
             <p class="lead">Adjust the settings below and then click on "Submit". The device will restart with the new settings applied. If you have adjusted WiFi settings the device may be moved onto a new IP address, or require you to reconnect to its access point.</p>
         </div>
