@@ -146,7 +146,7 @@
             $.getJSON('config').done(function(data) {
                 $('#project-version').text(data.version);
 
-                let current_version = parseInt(data.version.replace(/[^\d]/g, ""));
+                let current_version = parseInt(data.version.substring(0, data.version.indexOf('-')).replace(/[^\d]/g, ""));
                 $.getJSON(releases_api_url, function(data) {
                     if (typeof data === 'undefined') return;
 
