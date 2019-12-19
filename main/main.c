@@ -63,7 +63,7 @@ static void sntp_time_set_handler(struct timeval *tv) {
 void app_main()
 {
     status_led_init();
-    status_led_handle_t status_led = status_led_add(0xFFFFFF33, STATUS_LED_BLINK, 100, 1000, 0);
+    status_led_handle_t status_led = status_led_add(0xFFFFFF33, STATUS_LED_FADE, 250, 2500, 0);
 
     log_init();
     esp_log_set_vprintf(log_vprintf);
@@ -98,6 +98,11 @@ void app_main()
     ESP_LOGI(TAG, "╚══════════════════════════════════════════════╝");
 
     esp_event_loop_create_default();
+
+    vTaskDelay(pdMS_TO_TICKS(2500));
+    status_led->interval = 100;
+    status_led->duration = 1000;
+    status_led->flashing_mode = STATUS_LED_BLINK;
 
     tcpip_adapter_init();
 
