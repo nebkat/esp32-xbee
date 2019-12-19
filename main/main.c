@@ -110,7 +110,7 @@ void app_main()
 
     web_server_init();
 
-    if (reset_reason != ESP_RST_POWERON && reset_reason != ESP_RST_SW) {
+    if (reset_reason != ESP_RST_POWERON && reset_reason != ESP_RST_SW && reset_reason != ESP_RST_WDT) {
         status_led->active = false;
         status_led_handle_t error_led = status_led_add(0xFF000033, STATUS_LED_BLINK, 50, 10000, 0);
 
