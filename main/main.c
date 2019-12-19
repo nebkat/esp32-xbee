@@ -21,6 +21,7 @@
 #include <socket_client.h>
 #include <esp_sntp.h>
 #include <core_dump.h>
+#include <esp_ota_ops.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_system.h"
@@ -80,12 +81,16 @@ void app_main()
 
     esp_reset_reason_t reset_reason = esp_reset_reason();
 
-    uart_nmea("$PESP,INIT,START,%s,%s", PROJECT_VER, reset_reason_name(reset_reason));
+    const esp_app_desc_t *app_desc = esp_ota_get_app_description();
+
+    uart_nmea("$PESP,INIT,START,%s,%s", app_desc->version, reset_reason_name(reset_reason));
 
     ESP_LOGI(TAG, "╔══════════════════════════════════════════════╗");
-    ESP_LOGI(TAG, "║ ESP32 XBee UART Interface                    ║");
+    ESP_LOGI(TAG, "║ ESP32 XBee %-33s "                          "║", app_desc->version);
     ESP_LOGI(TAG, "╠══════════════════════════════════════════════╣");
-    ESP_LOGI(TAG, "║ Version: %-35s "                            "║", PROJECT_VER);
+    ESP_LOGI(TAG, "║ IDF Version: %-31s "                        "║", app_desc->idf_ver);
+    ESP_LOGI(TAG, "║ Compiled: %8s %-25s "                       "║", app_desc->time, app_desc->date);
+    ESP_LOGI(TAG, "╟──────────────────────────────────────────────╢");
     ESP_LOGI(TAG, "║ Reset reason: %-30s "                       "║", reset_reason_name(reset_reason));
     ESP_LOGI(TAG, "╟──────────────────────────────────────────────╢");
     ESP_LOGI(TAG, "║ Author: Nebojša Cvetković                    ║");

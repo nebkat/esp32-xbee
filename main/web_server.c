@@ -28,6 +28,7 @@
 #include <core_dump.h>
 #include <util.h>
 #include <lwip/inet.h>
+#include <esp_ota_ops.h>
 #include "web_server.h"
 
 /* Max length a file path can have on storage */
@@ -235,11 +236,14 @@ static esp_err_t core_dump_get_handler(httpd_req_t *req) {
 
     httpd_resp_set_type(req, "application/octet-stream");
 
+    char elf_sha256[9];
+    esp_ota_get_app_elf_sha256(elf_sha256, sizeof(elf_sha256));
+
     time_t t = time(NULL);
     char date[20];
     strftime(date, sizeof(date), "%F_%T", localtime(&t));
     char *content_disposition;
-    asprintf(&content_disposition, "attachment; filename=\"esp32_xbee_core_dump_%s.bin\"", date);
+    asprintf(&content_disposition, "attachment; filename=\"esp32_xbee_core_dump_%s_%s.bin\"", date, elf_sha256);
     httpd_resp_set_hdr(req, "Content-Disposition", content_disposition);
 
     for (size_t offset = 0; offset < core_dump_size; offset += BUFFER_SIZE) {
@@ -355,7 +359,9 @@ static esp_err_t config_get_handler(httpd_req_t *req) {
 
     cJSON *root = cJSON_CreateObject();
 
-    cJSON_AddStringToObject(root, "version", PROJECT_VER);
+    const esp_app_desc_t *app_desc = esp_ota_get_app_description();
+
+    cJSON_AddStringToObject(root, "version", app_desc->version);
 
     int config_item_count;
     const config_item_t *config_items = config_items_get(&config_item_count);
