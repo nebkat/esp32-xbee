@@ -21,7 +21,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
-#include "tcpip_adapter.h"
 
 #include "lwip/err.h"
 #include "lwip/sockets.h"
@@ -213,7 +212,7 @@ static esp_err_t socket_udp_accept() {
 
     // Receive until nothing left to receive
     int len;
-    while ((len = recvfrom(sock_udp, buffer, sizeof(buffer), MSG_DONTWAIT, (struct sockaddr *)&source_addr, &socklen)) > 0) {
+    while ((len = recvfrom(sock_udp, buffer, BUFFER_SIZE, MSG_DONTWAIT, (struct sockaddr *)&source_addr, &socklen)) > 0) {
         // Multiple connections could have been made at once, so accept for every receive just in case
         socket_udp_client_accept(source_addr);
 
@@ -236,7 +235,7 @@ static void socket_clients_receive(fd_set *socket_set) {
 
         // Receive until nothing left to receive
         int len;
-        while ((len = recv(client->socket, buffer, sizeof(buffer), MSG_DONTWAIT)) > 0) {
+        while ((len = recv(client->socket, buffer, BUFFER_SIZE, MSG_DONTWAIT)) > 0) {
             uart_write(buffer, len);
         }
 
