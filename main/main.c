@@ -82,14 +82,17 @@ void app_main()
     esp_reset_reason_t reset_reason = esp_reset_reason();
 
     const esp_app_desc_t *app_desc = esp_ota_get_app_description();
+    char elf_buffer[17];
+    esp_ota_get_app_elf_sha256(elf_buffer, sizeof(elf_buffer));
 
     uart_nmea("$PESP,INIT,START,%s,%s", app_desc->version, reset_reason_name(reset_reason));
 
     ESP_LOGI(TAG, "╔══════════════════════════════════════════════╗");
     ESP_LOGI(TAG, "║ ESP32 XBee %-33s "                          "║", app_desc->version);
     ESP_LOGI(TAG, "╠══════════════════════════════════════════════╣");
-    ESP_LOGI(TAG, "║ IDF Version: %-31s "                        "║", app_desc->idf_ver);
     ESP_LOGI(TAG, "║ Compiled: %8s %-25s "                       "║", app_desc->time, app_desc->date);
+    ESP_LOGI(TAG, "║ ELF SHA256: %-32s "                         "║", elf_buffer);
+    ESP_LOGI(TAG, "║ ESP-IDF: %-35s "                            "║", app_desc->idf_ver);
     ESP_LOGI(TAG, "╟──────────────────────────────────────────────╢");
     ESP_LOGI(TAG, "║ Reset reason: %-30s "                       "║", reset_reason_name(reset_reason));
     ESP_LOGI(TAG, "╟──────────────────────────────────────────────╢");
