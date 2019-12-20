@@ -70,7 +70,7 @@ void app_main()
     esp_log_level_set("gpio", ESP_LOG_WARN);
     esp_log_level_set("system_api", ESP_LOG_WARN);
     esp_log_level_set("wifi", ESP_LOG_WARN);
-    esp_log_level_set("tcpip_adapter", ESP_LOG_WARN);
+    esp_log_level_set("esp_netif_handlers", ESP_LOG_WARN);
 
     core_dump_check();
 
@@ -104,12 +104,6 @@ void app_main()
     status_led->duration = 1000;
     status_led->flashing_mode = STATUS_LED_BLINK;
 
-    tcpip_adapter_init();
-
-    wifi_init();
-
-    web_server_init();
-
     if (reset_reason != ESP_RST_POWERON && reset_reason != ESP_RST_SW && reset_reason != ESP_RST_WDT) {
         status_led->active = false;
         status_led_handle_t error_led = status_led_add(0xFF000033, STATUS_LED_BLINK, 50, 10000, 0);
@@ -117,7 +111,14 @@ void app_main()
         vTaskDelay(pdMS_TO_TICKS(10000));
 
         status_led_remove(error_led);
+        status_led->active = true;
     }
+
+    esp_netif_init();
+
+    wifi_init();
+
+    web_server_init();
 
     ntrip_caster_init();
     ntrip_server_init();

@@ -10,8 +10,8 @@ typedef struct wifi_ap_status {
     wifi_auth_mode_t authmode;
     uint8_t devices;
 
-    ip4_addr_t ip4_addr;
-    ip6_addr_t ip6_addr;
+    esp_ip4_addr_t ip4_addr;
+    esp_ip6_addr_t ip6_addr;
 } wifi_ap_status_t;
 
 typedef struct wifi_sta_status {
@@ -21,8 +21,8 @@ typedef struct wifi_sta_status {
     wifi_auth_mode_t authmode;
     int8_t rssi;
 
-    ip4_addr_t ip4_addr;
-    ip6_addr_t ip6_addr;
+    esp_ip4_addr_t ip4_addr;
+    esp_ip6_addr_t ip6_addr;
 } wifi_sta_status_t;
 
 void wifi_init();
@@ -37,7 +37,7 @@ void wifi_sta_status(wifi_sta_status_t *status);
 void wait_for_ip();
 void wait_for_network();
 
-char *tcpip_if_name(tcpip_adapter_if_t tcpip_if);
-char * wifi_auth_mode_name(wifi_auth_mode_t auth_mode);
+const char *esp_netif_name(esp_netif_t *esp_netif);
+const char * wifi_auth_mode_name(wifi_auth_mode_t auth_mode);
 
 #endif //ESP32_XBEE_WIFI_H

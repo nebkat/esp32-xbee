@@ -29,6 +29,7 @@
 #include <util.h>
 #include <lwip/inet.h>
 #include <esp_ota_ops.h>
+#include <esp_netif_sta_list.h>
 #include "web_server.h"
 
 /* Max length a file path can have on storage */
@@ -184,12 +185,12 @@ static esp_err_t hotspot_auth(httpd_req_t *req) {
     // ERROR_ACTION(TAG, client_addr.sin6_family != AF_INET, goto _auth_error, "IPv6 connections not supported, IP family %d", client_addr.sin6_family);
 
     wifi_sta_list_t *ap_sta_list = wifi_ap_sta_list();
-    tcpip_adapter_sta_list_t tcpip_ap_sta_list;
-    tcpip_adapter_get_sta_list(ap_sta_list, &tcpip_ap_sta_list);
+    esp_netif_sta_list_t esp_netif_ap_sta_list;
+    esp_netif_get_sta_list(ap_sta_list, &esp_netif_ap_sta_list);
 
     // TODO: Correctly read IPv4?
-    for (int i = 0; i < tcpip_ap_sta_list.num; i++) {
-        if (tcpip_ap_sta_list.sta[i].ip.addr == client_addr.sin6_addr.un.u32_addr[3]) return ESP_OK;
+    for (int i = 0; i < esp_netif_ap_sta_list.num; i++) {
+        if (esp_netif_ap_sta_list.sta[i].ip.addr == client_addr.sin6_addr.un.u32_addr[3]) return ESP_OK;
     }
 
     //_auth_error:
