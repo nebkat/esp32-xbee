@@ -361,7 +361,6 @@ static esp_err_t config_get_handler(httpd_req_t *req) {
     cJSON *root = cJSON_CreateObject();
 
     const esp_app_desc_t *app_desc = esp_ota_get_app_description();
-
     cJSON_AddStringToObject(root, "version", app_desc->version);
 
     int config_item_count;
@@ -519,19 +518,31 @@ static esp_err_t config_post_handler(httpd_req_t *req) {
     return json_response(req, root);
 }
 
-static esp_err_t wifi_status_get_handler(httpd_req_t *req) {
+static esp_err_t status_get_handler(httpd_req_t *req) {
     if (check_auth(req) == ESP_FAIL) return ESP_FAIL;
 
+    cJSON *root = cJSON_CreateObject();
+
+    // Uptime
+    cJSON_AddNumberToObject(root, "uptime", (int) ((double) esp_timer_get_time() / 1000000));
+
+    // Heap
+    cJSON *heap = cJSON_CreateObject();
+    cJSON_AddNumberToObject(heap, "total", heap_caps_get_total_size(MALLOC_CAP_8BIT));
+    cJSON_AddNumberToObject(heap, "free", heap_caps_get_free_size(MALLOC_CAP_8BIT));
+    cJSON_AddItemToObject(root, "heap", heap);
+
+    // WiFi
     wifi_ap_status_t ap_status;
     wifi_sta_status_t sta_status;
 
     wifi_ap_status(&ap_status);
     wifi_sta_status(&sta_status);
 
-    cJSON *root = cJSON_CreateObject();
+    cJSON *wifi = cJSON_CreateObject();
 
     cJSON *ap = cJSON_CreateObject();
-    cJSON_AddItemToObject(root, "ap", ap);
+    cJSON_AddItemToObject(wifi, "ap", ap);
 
     cJSON_AddBoolToObject(ap, "active", ap_status.active);
     if (ap_status.active) {
@@ -547,7 +558,7 @@ static esp_err_t wifi_status_get_handler(httpd_req_t *req) {
     }
 
     cJSON *sta = cJSON_CreateObject();
-    cJSON_AddItemToObject(root, "sta", sta);
+    cJSON_AddItemToObject(wifi, "sta", sta);
 
     cJSON_AddBoolToObject(sta, "connected", sta_status.connected);
     if (sta_status.connected) {
@@ -561,6 +572,8 @@ static esp_err_t wifi_status_get_handler(httpd_req_t *req) {
         snprintf(ip, sizeof(ip), IPV6STR, IPV62STR(sta_status.ip6_addr));
         cJSON_AddStringToObject(sta, "ip6", ip);
     }
+
+    cJSON_AddItemToObject(root, "wifi", wifi);
 
     return json_response(req, root);
 }
@@ -620,12 +633,12 @@ static httpd_handle_t web_server_start(void)
 
         register_uri_handler(server, "/config", HTTP_GET, config_get_handler, NULL);
         register_uri_handler(server, "/config", HTTP_POST, config_post_handler, NULL);
+        register_uri_handler(server, "/status", HTTP_GET, status_get_handler, NULL);
 
         register_uri_handler(server, "/log", HTTP_GET, log_get_handler, NULL);
         register_uri_handler(server, "/core_dump", HTTP_GET, core_dump_get_handler, NULL);
         register_uri_handler(server, "/heap_info", HTTP_GET, heap_info_get_handler, NULL);
 
-        register_uri_handler(server, "/wifi/status", HTTP_GET, wifi_status_get_handler, NULL);
         register_uri_handler(server, "/wifi/scan", HTTP_GET, wifi_scan_get_handler, NULL);
 
         register_uri_handler(server, "/*", HTTP_GET, file_get_handler, NULL);

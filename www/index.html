@@ -33,6 +33,10 @@
             filter: blur(5px);
             pointer-events: none;
         }
+
+        footer {
+            padding: 20px 0;
+        }
     </style>
     <script>
         var releases_api_url = 'https://api.github.com/repos/nebkat/esp32-xbee/releases';
@@ -212,44 +216,66 @@
                 }
             };
 
+            var deviceUptimeText = $('footer .uptime');
+            var deviceHeapText = $('footer .heap');
+
             var wifiApStatusText = form.find('.wifi-ap-status');
             var wifiStaStatusText = form.find('.wifi-sta-status');
 
             var reloadOnStatus = false;
 
-            var wifiStatusUpdate = function() {
-                $.getJSON('wifi/status').done(function(data) {
+            var secondsToHHMMSS = (seconds) => {
+                var hours   = Math.floor(seconds / 3600);
+                var minutes = Math.floor(seconds / 60) % 60;
+                seconds %= 60;
+
+                return [hours, minutes, seconds]
+                    .map(v => v < 10 ? "0" + v : v)
+                    .join(":");
+            };
+
+            var statusUpdate = function() {
+                $.getJSON('status').done(function(data) {
                     if (reloadOnStatus) {
                         window.location.reload();
                     }
 
+                    // Uptime
+                    deviceUptimeText.text(secondsToHHMMSS(parseInt(data.uptime)));
+
+                    // Heap
+                    deviceHeapText.text(Math.round(data.heap.free / data.heap.total * 100) + "% free");
+
+                    // WiFi
+                    let wifi = data.wifi;
+
                     wifiApStatusText.empty();
                     wifiStaStatusText.empty();
 
-                    if (!data.ap.active) {
+                    if (!wifi.ap.active) {
                         wifiApStatusText.text("Disabled");
                     } else {
-                        wifiApStatusText.appendText(data.ap.ssid + (data.ap.authmode == 'OPEN' ? " (OPEN)" : ''))
+                        wifiApStatusText.appendText(wifi.ap.ssid + (wifi.ap.authmode == 'OPEN' ? " (OPEN)" : ''))
                             .appendText(" / ")
-                            .append($('<a>', {text: data.ap.ip4, href: 'http://' + data.ap.ip4 + '/'}))
+                            .append($('<a>', {text: wifi.ap.ip4, href: 'http://' + wifi.ap.ip4 + '/'}))
                             .appendText(" / ")
-                            .appendText(data.ap.devices + " device" + (data.ap.devices != 1 ? "s" : ''));
+                            .appendText(wifi.ap.devices + " device" + (wifi.ap.devices != 1 ? "s" : ''));
                     }
 
-                    if (!data.sta.connected) {
+                    if (!wifi.sta.connected) {
                         wifiStaStatusText.text("Not Connected");
                     } else {
-                        wifiStaStatusText.appendText(data.sta.ssid + (data.sta.authmode == 'OPEN' ? " (OPEN)" : ''))
+                        wifiStaStatusText.appendText(wifi.sta.ssid + (wifi.sta.authmode == 'OPEN' ? " (OPEN)" : ''))
                             .appendText(" / ")
-                            .append($('<a>', {text: data.sta.ip4, href: 'http://' + data.sta.ip4 + '/'}))
+                            .append($('<a>', {text: wifi.sta.ip4, href: 'http://' + wifi.sta.ip4 + '/'}))
                             .appendText(" / ")
-                            .append($('<span>', {class: 'text-' + wifiRssiColorClass(data.sta.rssi), text: data.sta.rssi + "dBm"}));
+                            .append($('<span>', {class: 'text-' + wifiRssiColorClass(wifi.sta.rssi), text: wifi.sta.rssi + "dBm"}));
                     }
                 }).always(function() {
-                    setTimeout(wifiStatusUpdate, 2500);
+                    setTimeout(statusUpdate, 2500);
                 });
             };
-            wifiStatusUpdate();
+            statusUpdate();
 
             var wifiNetworksScanButton = form.find('.wifi-networks-scan');
             var wifiNetworksDropdownButton = form.find('.wifi-networks-dropdown');
@@ -922,6 +948,13 @@
             </div>
         </form>
     </div>
+    <footer id="footer" class="bg-dark">
+        <div class="container">
+            <div class="text-center text-light">
+                <small>&copy; <a href="http://cvetkovic.ie" class="text-white">Neboj&#353;a Cvetkovi&#263;</a> 2020 - <a href="https://github.com/nebkat" class="text-white">GitHub</a> - <a href="https://github.com/nebkat/esp32-xbee" class="text-white">Project</a> - Uptime <span class="uptime">loading...</span> - Heap <span class="heap">loading...</span></small>
+            </div>
+        </div>
+    </footer>
     <div class="modal fade" id="restarting-modal">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
