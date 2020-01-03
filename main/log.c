@@ -40,13 +40,11 @@ int log_vprintf(const char * format, va_list arg) {
     char buffer[512];
     int n = vsnprintf(buffer, 512, format, arg);
 
-    if (!xRingbufferSend(ringbuf_handle, buffer, n, 0)) {
-        return 0;
-    }
-
     if (n > 512) {
         n = 512;
     }
+
+    xRingbufferSend(ringbuf_handle, buffer, n, 0);
 
     uart_log(buffer, n);
 
