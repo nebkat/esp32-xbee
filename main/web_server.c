@@ -534,6 +534,12 @@ static esp_err_t status_get_handler(httpd_req_t *req) {
     cJSON_AddNumberToObject(heap, "free", heap_caps_get_free_size(MALLOC_CAP_8BIT));
     cJSON_AddItemToObject(root, "heap", heap);
 
+    // UART
+    cJSON *uart = cJSON_CreateObject();
+    cJSON_AddNumberToObject(uart, "in", uart_get_bytes_in());
+    cJSON_AddNumberToObject(uart, "out", uart_get_bytes_out());
+    cJSON_AddItemToObject(root, "uart", uart);
+
     // WiFi
     wifi_ap_status_t ap_status;
     wifi_sta_status_t sta_status;

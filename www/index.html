@@ -219,6 +219,8 @@
             var deviceUptimeText = $('footer .uptime');
             var deviceHeapText = $('footer .heap');
 
+            var uartStatusText = form.find('.uart-status');
+
             var wifiApStatusText = form.find('.wifi-ap-status');
             var wifiStaStatusText = form.find('.wifi-sta-status');
 
@@ -234,6 +236,20 @@
                     .join(":");
             };
 
+            var humanDataSize = (bytes) => {
+                var thresh = 1000;
+                if(Math.abs(bytes) < thresh) {
+                    return bytes + 'B';
+                }
+                var units = ['kB','MB','GB','TB','PB','EB','ZB','YB'];
+                var u = -1;
+                do {
+                    bytes /= thresh;
+                    ++u;
+                } while(Math.abs(bytes) >= thresh && u < units.length - 1);
+                return bytes.toFixed(1) + units[u];
+            };
+
             var statusUpdate = function() {
                 $.getJSON('status').done(function(data) {
                     if (reloadOnStatus) {
@@ -245,6 +261,10 @@
 
                     // Heap
                     deviceHeapText.text(Math.round(data.heap.free / data.heap.total * 100) + "% free");
+
+                    // UART
+                    uartStatusText.text(humanDataSize(data.uart.in) + " in / " + humanDataSize(data.uart.out) + " out");
+                    uartStatusText.prop('title', data.uart.in.toLocaleString() + " bytes in / " + data.uart.out.toLocaleString() + " bytes out");
 
                     // WiFi
                     let wifi = data.wifi;
@@ -429,6 +449,7 @@
                     <div class="card mb-3">
                         <div class="card-header">
                             UART (main communication)
+                            <small class="uart-status"></small>
                         </div>
                         <div class="card-body">
                             <div class="form-row mb-3">

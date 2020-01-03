@@ -19,5 +19,7 @@ void uart_inject(void *data, size_t len);
 int uart_log(char *buffer, size_t len);
 int uart_nmea(const char *fmt, ...);
 int uart_write(char *buffer, size_t len);
+int64_t uart_get_bytes_in();
+int64_t uart_get_bytes_out();
 
 #endif //ESP32_XBEE_UART_H

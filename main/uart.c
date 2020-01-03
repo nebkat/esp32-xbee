@@ -40,6 +40,9 @@ static uart_data_t buffer;
 static int uart_port = -1;
 static bool uart_log_forward = false;
 
+static uint64_t uart_bytes_in = 0;
+static uint64_t uart_bytes_out = 0;
+
 void uart_init() {
     uart_log_forward = config_get_bool1(CONF_ITEM(KEY_CONFIG_UART_LOG_FORWARD));
 
@@ -87,6 +90,8 @@ void uart_task(void *ctx) {
             continue;
         }
 
+        uart_bytes_in += buffer.len;
+
         esp_event_post(UART_EVENTS, 0, &buffer, buffer.len + sizeof(buffer.len), portMAX_DELAY);
     }
 }
@@ -118,5 +123,17 @@ int uart_nmea(const char *fmt, ...) {
 
 int uart_write(char *buf, size_t len) {
     if (uart_port < 0) return 0;
+    if (len < 0) return -1;
+
+    uart_bytes_out += len;
+
     return uart_write_bytes(uart_port, buf, len);
+}
+
+int64_t uart_get_bytes_in() {
+    return uart_bytes_in;
+}
+
+int64_t uart_get_bytes_out() {
+    return uart_bytes_out;
 }
