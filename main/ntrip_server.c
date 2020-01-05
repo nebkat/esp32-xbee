@@ -23,6 +23,7 @@
 #include <tasks.h>
 #include <status_led.h>
 #include <retry.h>
+#include <stream_stats.h>
 #include "ntrip.h"
 #include "config.h"
 #include "util.h"
@@ -36,13 +37,18 @@ static int sock = -1;
 static int server_keep_alive;
 
 static status_led_handle_t status_led = NULL;
+static stream_stats_handle_t stream_stats = NULL;
 
 static void ntrip_server_uart_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) {
     if (sock == -1) return;
 
     uart_data_t *data = event_data;
     int sent = write(sock, data->buffer, data->len);
-    if (sent < 0) destroy_socket(&sock);
+    if (sent < 0) {
+        destroy_socket(&sock);
+    } else {
+        stream_stats_increment(stream_stats, 0, sent);
+    }
 
     server_keep_alive = 0;
 }
@@ -53,6 +59,8 @@ static void ntrip_server_task(void *ctx) {
     config_color_t status_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_NTRIP_SERVER_COLOR));
     if (status_led_color.rgba != 0) status_led = status_led_add(status_led_color.rgba, STATUS_LED_FADE, 500, 2000, 0);
     if (status_led != NULL) status_led->active = false;
+
+    stream_stats = stream_stats_new("ntrip_server");
 
     retry_delay_handle_t delay_handle = retry_init(true, 5, 2000);
 

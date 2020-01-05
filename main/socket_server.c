@@ -26,6 +26,7 @@
 #include "lwip/sockets.h"
 #include <wifi.h>
 #include <status_led.h>
+#include <stream_stats.h>
 
 #include "socket_server.h"
 #include "config.h"
@@ -44,10 +45,11 @@ static const char *TAG = "SOCKET_SERVER";
 #define SOCKET_IP_PROTOCOL IPPROTO_IP6
 #endif
 
-int sock_tcp, sock_udp;
-char *buffer;
+static int sock_tcp, sock_udp;
+static char *buffer;
 
 static status_led_handle_t status_led = NULL;
+static stream_stats_handle_t stream_stats = NULL;
 
 typedef struct socket_client_t {
     int socket;
@@ -108,8 +110,12 @@ static void socket_server_uart_handler(void* handler_args, esp_event_base_t base
 
     socket_client_t *client, *client_tmp;
     SLIST_FOREACH_SAFE(client, &socket_client_list, next, client_tmp) {
-        int err = write(client->socket, data->buffer, data->len);
-        if (err < 0) socket_client_remove(client);
+        int sent = write(client->socket, data->buffer, data->len);
+        if (sent < 0) {
+            socket_client_remove(client);
+        } else {
+            stream_stats_increment(stream_stats, 0, sent);
+        }
     }
 }
 
@@ -216,6 +222,8 @@ static esp_err_t socket_udp_accept() {
         // Multiple connections could have been made at once, so accept for every receive just in case
         socket_udp_client_accept(source_addr);
 
+        stream_stats_increment(stream_stats, len, 0);
+
         uart_write(buffer, len);
     }
 
@@ -236,6 +244,8 @@ static void socket_clients_receive(fd_set *socket_set) {
         // Receive until nothing left to receive
         int len;
         while ((len = recv(client->socket, buffer, BUFFER_SIZE, MSG_DONTWAIT)) > 0) {
+            stream_stats_increment(stream_stats, len, 0);
+
             uart_write(buffer, len);
         }
 
@@ -251,6 +261,8 @@ static void socket_server_task(void *ctx) {
 
     config_color_t status_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_SOCKET_SERVER_COLOR));
     if (status_led_color.rgba != 0) status_led = status_led_add(status_led_color.rgba, STATUS_LED_STATIC, 500, 2000, 0);
+
+    stream_stats = stream_stats_new("socket_server");
 
     while (true) {
         SLIST_INIT(&socket_client_list);

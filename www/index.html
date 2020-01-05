@@ -219,10 +219,10 @@
             var deviceUptimeText = $('footer .uptime');
             var deviceHeapText = $('footer .heap');
 
-            var uartStatusText = form.find('.uart-status');
-
             var wifiApStatusText = form.find('.wifi-ap-status');
             var wifiStaStatusText = form.find('.wifi-sta-status');
+
+            var streamStatsTexts = form.find('.stream-stats');
 
             var reloadOnStatus = false;
 
@@ -262,9 +262,22 @@
                     // Heap
                     deviceHeapText.text(Math.round(data.heap.free / data.heap.total * 100) + "% free");
 
-                    // UART
-                    uartStatusText.text(humanDataSize(data.uart.in) + " in / " + humanDataSize(data.uart.out) + " out");
-                    uartStatusText.prop('title', data.uart.in.toLocaleString() + " bytes in / " + data.uart.out.toLocaleString() + " bytes out");
+                    // Streams
+                    streamStatsTexts.each(function() {
+                        const stream = $(this).data('stream');
+                        if (typeof data.streams[stream] === 'undefined') return;
+
+                        const stats = data.streams[stream];
+
+                        $(this).text(humanDataSize(stats.total.in) +
+                            " in (" + humanDataSize(stats.rate.in) + "/s) / " +
+                            humanDataSize(stats.total.out) +
+                            " out (" + humanDataSize(stats.rate.out) + "/s)");
+                        $(this).prop('title', stats.total.in.toLocaleString() +
+                            " bytes in (" + (stats.rate.in * 8) + "bps) / " +
+                            stats.total.out.toLocaleString() +
+                            " bytes out (" + (stats.rate.out * 8) + "bps)");
+                    });
 
                     // WiFi
                     let wifi = data.wifi;
@@ -449,7 +462,7 @@
                     <div class="card mb-3">
                         <div class="card-header">
                             UART (main communication)
-                            <small class="uart-status"></small>
+                            <small class="uart-stats stream-stats" data-stream="uart"></small>
                         </div>
                         <div class="card-body">
                             <div class="form-row mb-3">
@@ -739,6 +752,7 @@
                     <div data-disable-if="#switch-ntrip-client" class="card mb-3">
                         <div class="card-header">
                             NTRIP client
+                            <small class="ntrip-client-stats stream-stats" data-stream="ntrip_client"></small>
                             <div class="custom-control custom-switch d-inline float-right">
                                 <input type="checkbox" name="ntr_cli_active" value="1" class="custom-control-input" id="switch-ntrip-client">
                                 <label class="custom-control-label" for="switch-ntrip-client"></label>
@@ -798,6 +812,7 @@
                     <div data-disable-if="#switch-ntrip-server" class="card mb-3">
                         <div class="card-header">
                             NTRIP server
+                            <small class="ntrip-server-stats stream-stats" data-stream="ntrip_server"></small>
                             <div class="custom-control custom-switch d-inline float-right">
                                 <input type="checkbox" name="ntr_srv_active" value="1" class="custom-control-input" id="switch-ntrip-server">
                                 <label class="custom-control-label" for="switch-ntrip-server"></label>
@@ -857,6 +872,7 @@
                     <div data-disable-if="#switch-ntrip-caster" class="card mb-3">
                         <div class="card-header">
                             NTRIP caster
+                            <small class="ntrip-caster-stats stream-stats" data-stream="ntrip_caster"></small>
                             <div class="custom-control custom-switch d-inline float-right">
                                 <input type="checkbox" name="ntr_cst_active" value="1" class="custom-control-input" id="switch-ntrip-caster">
                                 <label class="custom-control-label" for="switch-ntrip-caster"></label>
@@ -899,6 +915,7 @@
                     <div data-disable-if="#switch-socket-server" class="card mb-3">
                         <div class="card-header">
                             Socket server
+                            <small class="socket-server-stats stream-stats" data-stream="socket_server"></small>
                             <div class="custom-control custom-switch d-inline float-right">
                                 <input type="checkbox" name="sck_srv_active" value="1" class="custom-control-input" id="switch-socket-server">
                                 <label class="custom-control-label" for="switch-socket-server"></label>
@@ -927,6 +944,7 @@
                     <div data-disable-if="#switch-socket-client" class="card mb-3">
                         <div class="card-header">
                             Socket client
+                            <small class="socket-client-stats stream-stats" data-stream="socket_client"></small>
                             <div class="custom-control custom-switch d-inline float-right">
                                 <input type="checkbox" name="sck_cli_active" value="1" class="custom-control-input" id="switch-socket-client">
                                 <label class="custom-control-label" for="switch-socket-client"></label>

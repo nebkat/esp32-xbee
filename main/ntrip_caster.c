@@ -24,6 +24,7 @@
 #include <mdns.h>
 #include <tasks.h>
 #include <status_led.h>
+#include <stream_stats.h>
 #include "ntrip.h"
 #include "config.h"
 #include "util.h"
@@ -36,6 +37,7 @@ static const char *TAG = "NTRIP_CASTER";
 static int sock = -1;
 
 static status_led_handle_t status_led = NULL;
+static stream_stats_handle_t stream_stats = NULL;
 
 typedef struct ntrip_caster_client_t {
     int socket;
@@ -65,8 +67,12 @@ static void ntrip_caster_uart_handler(void* handler_args, esp_event_base_t base,
 
     ntrip_caster_client_t *client, *client_tmp;
     SLIST_FOREACH_SAFE(client, &caster_clients_list, next, client_tmp) {
-        int err = write(client->socket, data->buffer, data->len);
-        if (err < 0) ntrip_caster_client_remove(client);
+        int sent = write(client->socket, data->buffer, data->len);
+        if (sent < 0) {
+            ntrip_caster_client_remove(client);
+        } else {
+            stream_stats_increment(stream_stats, 0, sent);
+        }
     }
 }
 
@@ -109,6 +115,8 @@ static void ntrip_caster_task(void *ctx) {
 
     config_color_t status_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_NTRIP_CASTER_COLOR));
     if (status_led_color.rgba != 0) status_led = status_led_add(status_led_color.rgba, STATUS_LED_STATIC, 500, 2000, 0);
+
+    stream_stats = stream_stats_new("ntrip_caster");
 
     while (true) {
         ntrip_caster_socket_init();

@@ -21,6 +21,7 @@
 #include <esp_log.h>
 #include <string.h>
 #include <nmea.h>
+#include <stream_stats.h>
 
 #include "bluetooth.h"
 #include "uart.h"
@@ -40,8 +41,9 @@ static uart_data_t buffer;
 static int uart_port = -1;
 static bool uart_log_forward = false;
 
-static uint64_t uart_bytes_in = 0;
-static uint64_t uart_bytes_out = 0;
+static stream_stats_handle_t stream_stats;
+
+void uart_task(void *ctx);
 
 void uart_init() {
     uart_log_forward = config_get_bool1(CONF_ITEM(KEY_CONFIG_UART_LOG_FORWARD));
@@ -78,6 +80,8 @@ void uart_init() {
     ));
     ESP_ERROR_CHECK(uart_driver_install(uart_port, UART_BUFFER_SIZE, UART_BUFFER_SIZE, 0, NULL, 0));
 
+    stream_stats = stream_stats_new("uart");
+
     xTaskCreate(uart_task, "uart_task", 8192, NULL, TASK_PRIORITY_UART, NULL);
 }
 
@@ -90,7 +94,7 @@ void uart_task(void *ctx) {
             continue;
         }
 
-        uart_bytes_in += buffer.len;
+        stream_stats_increment(stream_stats, buffer.len, 0);
 
         esp_event_post(UART_EVENTS, 0, &buffer, buffer.len + sizeof(buffer.len), portMAX_DELAY);
     }
@@ -123,17 +127,9 @@ int uart_nmea(const char *fmt, ...) {
 
 int uart_write(char *buf, size_t len) {
     if (uart_port < 0) return 0;
-    if (len < 0) return -1;
+    if (len == 0) return -1;
 
-    uart_bytes_out += len;
+    stream_stats_increment(stream_stats, 0, len);
 
     return uart_write_bytes(uart_port, buf, len);
-}
-
-int64_t uart_get_bytes_in() {
-    return uart_bytes_in;
-}
-
-int64_t uart_get_bytes_out() {
-    return uart_bytes_out;
 }

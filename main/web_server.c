@@ -30,6 +30,7 @@
 #include <lwip/inet.h>
 #include <esp_ota_ops.h>
 #include <esp_netif_sta_list.h>
+#include <stream_stats.h>
 #include "web_server.h"
 
 /* Max length a file path can have on storage */
@@ -529,16 +530,24 @@ static esp_err_t status_get_handler(httpd_req_t *req) {
     cJSON_AddNumberToObject(root, "uptime", (int) ((double) esp_timer_get_time() / 1000000));
 
     // Heap
-    cJSON *heap = cJSON_CreateObject();
+    cJSON *heap = cJSON_AddObjectToObject(root, "heap");
     cJSON_AddNumberToObject(heap, "total", heap_caps_get_total_size(MALLOC_CAP_8BIT));
     cJSON_AddNumberToObject(heap, "free", heap_caps_get_free_size(MALLOC_CAP_8BIT));
-    cJSON_AddItemToObject(root, "heap", heap);
 
-    // UART
-    cJSON *uart = cJSON_CreateObject();
-    cJSON_AddNumberToObject(uart, "in", uart_get_bytes_in());
-    cJSON_AddNumberToObject(uart, "out", uart_get_bytes_out());
-    cJSON_AddItemToObject(root, "uart", uart);
+    // Streams
+    cJSON *streams = cJSON_AddObjectToObject(root, "streams");
+    stream_stats_values_t values;
+    for (stream_stats_handle_t stats = stream_stats_first(); stats != NULL; stats = stream_stats_next(stats)) {
+        stream_stats_values(stats, &values);
+
+        cJSON *stream = cJSON_AddObjectToObject(streams, values.name);
+        cJSON *total = cJSON_AddObjectToObject(stream, "total");
+        cJSON_AddNumberToObject(total, "in", values.total_in);
+        cJSON_AddNumberToObject(total, "out", values.total_out);
+        cJSON *rate = cJSON_AddObjectToObject(stream, "rate");
+        cJSON_AddNumberToObject(rate, "in", values.rate_in);
+        cJSON_AddNumberToObject(rate, "out", values.rate_out);
+    }
 
     // WiFi
     wifi_ap_status_t ap_status;
@@ -547,11 +556,9 @@ static esp_err_t status_get_handler(httpd_req_t *req) {
     wifi_ap_status(&ap_status);
     wifi_sta_status(&sta_status);
 
-    cJSON *wifi = cJSON_CreateObject();
+    cJSON *wifi = cJSON_AddObjectToObject(root, "wifi");
 
-    cJSON *ap = cJSON_CreateObject();
-    cJSON_AddItemToObject(wifi, "ap", ap);
-
+    cJSON *ap = cJSON_AddObjectToObject(wifi, "ap");
     cJSON_AddBoolToObject(ap, "active", ap_status.active);
     if (ap_status.active) {
         cJSON_AddStringToObject(ap, "ssid", (char *) ap_status.ssid);
@@ -565,9 +572,7 @@ static esp_err_t status_get_handler(httpd_req_t *req) {
         cJSON_AddStringToObject(ap, "ip6", ip);
     }
 
-    cJSON *sta = cJSON_CreateObject();
-    cJSON_AddItemToObject(wifi, "sta", sta);
-
+    cJSON *sta = cJSON_AddObjectToObject(wifi, "sta");
     cJSON_AddBoolToObject(sta, "connected", sta_status.connected);
     if (sta_status.connected) {
         cJSON_AddStringToObject(sta, "ssid", (char *) sta_status.ssid);
@@ -580,8 +585,6 @@ static esp_err_t status_get_handler(httpd_req_t *req) {
         snprintf(ip, sizeof(ip), IPV6STR, IPV62STR(sta_status.ip6_addr));
         cJSON_AddStringToObject(sta, "ip6", ip);
     }
-
-    cJSON_AddItemToObject(root, "wifi", wifi);
 
     return json_response(req, root);
 }
