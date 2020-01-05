@@ -405,6 +405,7 @@ void wifi_ap_status(wifi_ap_status_t *status) {
 }
 
 void wifi_sta_status(wifi_sta_status_t *status) {
+    status->active = sta_active;
     status->connected = sta_connected;
     if (!sta_connected) {
         memcpy(status->ssid, config_sta.sta.ssid, sizeof(config_sta.sta.ssid));

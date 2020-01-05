@@ -295,7 +295,9 @@
                             .appendText(wifi.ap.devices + " device" + (wifi.ap.devices != 1 ? "s" : ''));
                     }
 
-                    if (!wifi.sta.connected) {
+                    if (!wifi.sta.active) {
+                        wifiStaStatusText.text("Not Active");
+                    } else if (!wifi.sta.connected) {
                         wifiStaStatusText.text("Not Connected");
                     } else {
                         wifiStaStatusText.appendText(wifi.sta.ssid + (wifi.sta.authmode == 'OPEN' ? " (OPEN)" : ''))

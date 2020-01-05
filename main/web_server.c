@@ -573,17 +573,20 @@ static esp_err_t status_get_handler(httpd_req_t *req) {
     }
 
     cJSON *sta = cJSON_AddObjectToObject(wifi, "sta");
-    cJSON_AddBoolToObject(sta, "connected", sta_status.connected);
-    if (sta_status.connected) {
-        cJSON_AddStringToObject(sta, "ssid", (char *) sta_status.ssid);
-        cJSON_AddStringToObject(sta, "authmode", wifi_auth_mode_name(sta_status.authmode));
-        cJSON_AddNumberToObject(sta, "rssi", sta_status.rssi);
+    cJSON_AddBoolToObject(sta, "active", ap_status.active);
+    if (sta_status.active) {
+        cJSON_AddBoolToObject(sta, "connected", sta_status.connected);
+        if (sta_status.connected) {
+            cJSON_AddStringToObject(sta, "ssid", (char *) sta_status.ssid);
+            cJSON_AddStringToObject(sta, "authmode", wifi_auth_mode_name(sta_status.authmode));
+            cJSON_AddNumberToObject(sta, "rssi", sta_status.rssi);
 
-        char ip[40];
-        snprintf(ip, sizeof(ip), IPSTR, IP2STR(&sta_status.ip4_addr));
-        cJSON_AddStringToObject(sta, "ip4", ip);
-        snprintf(ip, sizeof(ip), IPV6STR, IPV62STR(sta_status.ip6_addr));
-        cJSON_AddStringToObject(sta, "ip6", ip);
+            char ip[40];
+            snprintf(ip, sizeof(ip), IPSTR, IP2STR(&sta_status.ip4_addr));
+            cJSON_AddStringToObject(sta, "ip4", ip);
+            snprintf(ip, sizeof(ip), IPV6STR, IPV62STR(sta_status.ip6_addr));
+            cJSON_AddStringToObject(sta, "ip6", ip);
+        }
     }
 
     return json_response(req, root);

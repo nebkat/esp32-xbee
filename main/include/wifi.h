@@ -15,6 +15,7 @@ typedef struct wifi_ap_status {
 } wifi_ap_status_t;
 
 typedef struct wifi_sta_status {
+    bool active;
     bool connected;
 
     char ssid[33];
