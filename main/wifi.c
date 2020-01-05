@@ -260,6 +260,20 @@ void wifi_init() {
     if (ap_enable) {
         esp_netif_ap = esp_netif_create_default_wifi_ap();
 
+        // IP configuration
+        esp_netif_ip_info_t ap_ip_info;
+        config_get_primitive(CONF_ITEM(KEY_CONFIG_WIFI_AP_GATEWAY), &ap_ip_info.ip);
+        ap_ip_info.gw = ap_ip_info.ip;
+        config_get_primitive(CONF_ITEM(KEY_CONFIG_WIFI_AP_NETMASK), &ap_ip_info.netmask);
+
+        ap_ip_info.ip.addr = __bswap32(ap_ip_info.ip.addr);
+        ap_ip_info.gw.addr = __bswap32(ap_ip_info.gw.addr);
+        ap_ip_info.netmask.addr = __bswap32(ap_ip_info.netmask.addr);
+
+        esp_netif_dhcps_stop(esp_netif_ap);
+        esp_netif_set_ip_info(esp_netif_ap, &ap_ip_info);
+        esp_netif_dhcps_start(esp_netif_ap);
+
         config_ap.ap.max_connection = 4;
         size_t ap_ssid_len = sizeof(config_ap.ap.ssid);
         config_get_str_blob(CONF_ITEM(KEY_CONFIG_WIFI_AP_SSID), &config_ap.ap.ssid, &ap_ssid_len);
@@ -287,6 +301,14 @@ void wifi_init() {
         uart_nmea("$PESP,WIFI,AP,SSID,%s,%c,%c", config_ap.ap.ssid,
                 config_ap.ap.ssid_hidden ? 'H' : 'V',
                 ap_password_len == 0 ? 'O' : 'P');
+
+        ESP_LOGI(TAG, "WIFI_AP_IP: ip: " IPSTR "/%d, gw: " IPSTR,
+                IP2STR(&ap_ip_info.ip),
+                ffs(~ap_ip_info.netmask.addr) - 1,
+                IP2STR(&ap_ip_info.gw));
+        uart_nmea("$PESP,WIFI,AP,IP," IPSTR "/%d",
+                IP2STR(&ap_ip_info.ip),
+                ffs(~ap_ip_info.netmask.addr) - 1);
     }
 
     // STA

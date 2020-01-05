@@ -126,6 +126,8 @@ typedef struct config_item {
 #define KEY_CONFIG_WIFI_AP_SSID_HIDDEN "w_ap_ssid_hid"
 #define KEY_CONFIG_WIFI_AP_AUTH_MODE "w_ap_auth_mode"
 #define KEY_CONFIG_WIFI_AP_PASSWORD "w_ap_pass"
+#define KEY_CONFIG_WIFI_AP_GATEWAY "w_ap_gw"
+#define KEY_CONFIG_WIFI_AP_NETMASK "w_ap_netmask"
 
 #define KEY_CONFIG_WIFI_STA_ACTIVE "w_sta_active"
 #define KEY_CONFIG_WIFI_STA_COLOR "w_sta_color"

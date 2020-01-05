@@ -367,22 +367,52 @@
             var wifiApIpMaxInput = form.find('input[name="w_ap_ip_max"]');
             var wifiApSubnetInput = form.find('select[name="w_ap_ip_sub"]');
 
-            wifiApIpByte3Input.on('change input', function() {
-                wifiApIpPrefixText.text(wifiApIpByte1Input.val() + "." + wifiApIpByte2Input.val() + "." + wifiApIpByte3Input.val() + ".");
-            }).trigger('change');
+            var wifiApGatewayInput = form.find('input[name="w_ap_gw"]');
+            var wifiApNetmaskInput = form.find('input[name="w_ap_netmask"]');
 
-            wifiApSubnetInput.add(wifiApIpByte4Input).on('change input', function() {
-                var subnet = wifiApSubnetInput.children('option:selected').val();
-                var mask = 255 >> (subnet - 24);
+            wifiApGatewayInput.on('change', function() {
+                const ip = parseInt($(this).val());
+                const a = ip >>> 24;
+                const b = (ip >> 16) & 0xff;
+                const c = (ip >> 8) & 0xff;
+                const d = ip & 0xff;
 
-                var ip = Math.max(0, Math.min(255, wifiApIpByte4Input.val()));
-                var min = (ip & ~mask) + 1;
-                var max = (ip | mask) - 1;
+                wifiApIpByte1Input.val(a);
+                wifiApIpByte2Input.val(b);
+                wifiApIpByte3Input.val(c).trigger('change');
+                wifiApIpByte4Input.val(d).trigger('change');
+            });
+
+            wifiApNetmaskInput.on('change', function() {
+                const mask = ~(parseInt($(this).val()) - 1);
+                let subnet = 32 - Math.floor(Math.log2(mask));
+                if (subnet < 24 || subnet > 30) subnet = 24;
+
+                wifiApSubnetInput.val(subnet).trigger('change');
+            });
+
+            wifiApSubnetInput.add(wifiApIpByte3Input).add(wifiApIpByte4Input).on('change input', function() {
+                const a = parseInt(wifiApIpByte1Input.val());
+                const b = parseInt(wifiApIpByte2Input.val());
+                const c = parseInt(wifiApIpByte3Input.val());
+                const d = parseInt(wifiApIpByte4Input.val());
+                const subnet = parseInt(wifiApSubnetInput.children('option:selected').val());
+
+                wifiApIpPrefixText.text(a + "." + b + "." + c + ".");
+
+                const mask = 255 >> (subnet - 24);
+
+                const ip = Math.max(0, Math.min(255, wifiApIpByte4Input.val()));
+                const min = (ip & ~mask) + 1;
+                const max = (ip | mask) - 1;
 
                 wifiApIpByte4Input.prop('min', min).prop('max', max).toggleClass('is-invalid', ip < min || ip > max);
 
                 wifiApIpMinInput.val(min);
                 wifiApIpMaxInput.val(max);
+
+                wifiApNetmaskInput.val(0xffffffff - mask);
+                wifiApGatewayInput.val(((a << 24) + (b << 16) + (c << 8) + d) >>> 0);
             }).trigger('change');
 
             var socketClientConnectMessageInput = form.find('input[name="sck_cli_msg"]');
@@ -656,6 +686,8 @@
                                 <div class="col-6">
                                     <label>Gateway and subnet</label>
                                     <div class="input-group">
+                                        <input type="hidden" name="w_ap_gw" data-formatted="true">
+                                        <input type="hidden" name="w_ap_netmask" data-formatted="true">
                                         <div class="input-group-prepend">
                                             <span class="input-group-text px-1">192.168.</span>
                                         </div>

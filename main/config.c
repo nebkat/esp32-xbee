@@ -282,6 +282,14 @@ const config_item_t CONFIG_ITEMS[] = {
                 .secret = true,
                 .def.str = ""
         }, {
+                .key = KEY_CONFIG_WIFI_AP_GATEWAY,
+                .type = CONFIG_ITEM_TYPE_UINT32,
+                .def.uint32 = 0xc0a80401
+        }, {
+                .key = KEY_CONFIG_WIFI_AP_NETMASK,
+                .type = CONFIG_ITEM_TYPE_UINT32,
+                .def.uint32 = 0xffffff00
+        }, {
                 .key = KEY_CONFIG_WIFI_STA_ACTIVE,
                 .type = CONFIG_ITEM_TYPE_BOOL,
                 .def.bool1 = false
