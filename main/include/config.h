@@ -16,6 +16,7 @@ typedef enum {
     CONFIG_ITEM_TYPE_STRING,
     CONFIG_ITEM_TYPE_BLOB,
     CONFIG_ITEM_TYPE_COLOR,
+    CONFIG_ITEM_TYPE_IP,
     CONFIG_ITEM_TYPE_MAX
 } config_item_type_t;
 
@@ -127,12 +128,18 @@ typedef struct config_item {
 #define KEY_CONFIG_WIFI_AP_AUTH_MODE "w_ap_auth_mode"
 #define KEY_CONFIG_WIFI_AP_PASSWORD "w_ap_pass"
 #define KEY_CONFIG_WIFI_AP_GATEWAY "w_ap_gw"
-#define KEY_CONFIG_WIFI_AP_NETMASK "w_ap_netmask"
+#define KEY_CONFIG_WIFI_AP_SUBNET "w_ap_subnet"
 
 #define KEY_CONFIG_WIFI_STA_ACTIVE "w_sta_active"
 #define KEY_CONFIG_WIFI_STA_COLOR "w_sta_color"
 #define KEY_CONFIG_WIFI_STA_SSID "w_sta_ssid"
 #define KEY_CONFIG_WIFI_STA_PASSWORD "w_sta_pass"
+#define KEY_CONFIG_WIFI_STA_STATIC "w_sta_static"
+#define KEY_CONFIG_WIFI_STA_IP "w_sta_ip"
+#define KEY_CONFIG_WIFI_STA_GATEWAY "w_sta_gw"
+#define KEY_CONFIG_WIFI_STA_SUBNET "w_sta_subnet"
+#define KEY_CONFIG_WIFI_STA_DNS_A "w_sta_dns_a"
+#define KEY_CONFIG_WIFI_STA_DNS_B "w_sta_dns_b"
 
 esp_err_t config_init();
 esp_err_t config_reset();

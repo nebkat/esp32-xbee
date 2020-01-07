@@ -28,6 +28,7 @@
 #include <status_led.h>
 #include <retry.h>
 #include <freertos/event_groups.h>
+#include <esp_netif_ip_addr.h>
 #include "wifi.h"
 #include "config.h"
 
@@ -261,17 +262,14 @@ void wifi_init() {
         esp_netif_ap = esp_netif_create_default_wifi_ap();
 
         // IP configuration
-        esp_netif_ip_info_t ap_ip_info;
-        config_get_primitive(CONF_ITEM(KEY_CONFIG_WIFI_AP_GATEWAY), &ap_ip_info.ip);
-        ap_ip_info.gw = ap_ip_info.ip;
-        config_get_primitive(CONF_ITEM(KEY_CONFIG_WIFI_AP_NETMASK), &ap_ip_info.netmask);
-
-        ap_ip_info.ip.addr = __bswap32(ap_ip_info.ip.addr);
-        ap_ip_info.gw.addr = __bswap32(ap_ip_info.gw.addr);
-        ap_ip_info.netmask.addr = __bswap32(ap_ip_info.netmask.addr);
+        esp_netif_ip_info_t ip_info_ap;
+        config_get_primitive(CONF_ITEM(KEY_CONFIG_WIFI_AP_GATEWAY), &ip_info_ap.ip);
+        ip_info_ap.gw = ip_info_ap.ip;
+        uint8_t subnet = config_get_u8(CONF_ITEM(KEY_CONFIG_WIFI_STA_SUBNET));
+        ip_info_ap.netmask.addr = esp_netif_htonl(0xffffffffu << (32u - subnet));
 
         esp_netif_dhcps_stop(esp_netif_ap);
-        esp_netif_set_ip_info(esp_netif_ap, &ap_ip_info);
+        esp_netif_set_ip_info(esp_netif_ap, &ip_info_ap);
         esp_netif_dhcps_start(esp_netif_ap);
 
         config_ap.ap.max_connection = 4;
@@ -303,18 +301,36 @@ void wifi_init() {
                 ap_password_len == 0 ? 'O' : 'P');
 
         ESP_LOGI(TAG, "WIFI_AP_IP: ip: " IPSTR "/%d, gw: " IPSTR,
-                IP2STR(&ap_ip_info.ip),
-                ffs(~ap_ip_info.netmask.addr) - 1,
-                IP2STR(&ap_ip_info.gw));
+                IP2STR(&ip_info_ap.ip),
+                ffs(~ip_info_ap.netmask.addr) - 1,
+                IP2STR(&ip_info_ap.gw));
         uart_nmea("$PESP,WIFI,AP,IP," IPSTR "/%d",
-                IP2STR(&ap_ip_info.ip),
-                ffs(~ap_ip_info.netmask.addr) - 1);
+                IP2STR(&ip_info_ap.ip),
+                ffs(~ip_info_ap.netmask.addr) - 1);
     }
 
     // STA
     bool sta_enable = config_get_bool1(CONF_ITEM(KEY_CONFIG_WIFI_STA_ACTIVE));
     if (sta_enable) {
         esp_netif_sta = esp_netif_create_default_wifi_sta();
+
+        // Static IP configuration
+        if (config_get_bool1(CONF_ITEM(KEY_CONFIG_WIFI_STA_STATIC))) {
+            esp_netif_ip_info_t ip_info_sta;
+            config_get_primitive(CONF_ITEM(KEY_CONFIG_WIFI_STA_IP), &ip_info_sta.ip);
+            config_get_primitive(CONF_ITEM(KEY_CONFIG_WIFI_STA_GATEWAY), &ip_info_sta.gw);
+            uint8_t subnet = config_get_u8(CONF_ITEM(KEY_CONFIG_WIFI_STA_SUBNET));
+            ip_info_sta.netmask.addr = esp_netif_htonl(0xffffffffu << (32u - subnet));
+
+            esp_netif_dns_info_t dns_info_sta_main, dns_info_sta_backup;
+            config_get_primitive(CONF_ITEM(KEY_CONFIG_WIFI_STA_DNS_A), &dns_info_sta_main.ip.u_addr.ip4.addr);
+            config_get_primitive(CONF_ITEM(KEY_CONFIG_WIFI_STA_DNS_B), &dns_info_sta_backup.ip.u_addr.ip4.addr);
+
+            esp_netif_dhcpc_stop(esp_netif_sta);
+            esp_netif_set_ip_info(esp_netif_sta, &ip_info_sta);
+            esp_netif_set_dns_info(esp_netif_sta, ESP_NETIF_DNS_MAIN, &dns_info_sta_main);
+            esp_netif_set_dns_info(esp_netif_sta, ESP_NETIF_DNS_BACKUP, &dns_info_sta_backup);
+        }
 
         size_t sta_ssid_len = sizeof(config_sta.sta.ssid);
         config_get_str_blob(CONF_ITEM(KEY_CONFIG_WIFI_STA_SSID), &config_sta.sta.ssid, &sta_ssid_len);
@@ -370,11 +386,11 @@ void wifi_init() {
         ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &config_sta));
 
         // Keep track of connection for RSSI indicator, but suspend until connected
-        xTaskCreate(wifi_sta_status_task, "wifi_sta_status", 1024, NULL, TASK_PRIORITY_WIFI_STATUS, &sta_status_task);
+        xTaskCreate(wifi_sta_status_task, "wifi_sta_status", 2048, NULL, TASK_PRIORITY_WIFI_STATUS, &sta_status_task);
         vTaskSuspend(sta_status_task);
 
         // Reconnect when disconnected
-        xTaskCreate(wifi_sta_reconnect_task, "wifi_sta_reconnect", 2048, NULL, TASK_PRIORITY_WIFI_STATUS, &sta_reconnect_task);
+        xTaskCreate(wifi_sta_reconnect_task, "wifi_sta_reconnect", 4096, NULL, TASK_PRIORITY_WIFI_STATUS, &sta_reconnect_task);
         vTaskSuspend(sta_reconnect_task);
     }
 

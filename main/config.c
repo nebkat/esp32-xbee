@@ -283,12 +283,12 @@ const config_item_t CONFIG_ITEMS[] = {
                 .def.str = ""
         }, {
                 .key = KEY_CONFIG_WIFI_AP_GATEWAY,
-                .type = CONFIG_ITEM_TYPE_UINT32,
-                .def.uint32 = 0xc0a80401
+                .type = CONFIG_ITEM_TYPE_IP,
+                .def.uint32 = esp_netif_htonl(esp_netif_ip4_makeu32(192, 168, 4, 1))
         }, {
-                .key = KEY_CONFIG_WIFI_AP_NETMASK,
-                .type = CONFIG_ITEM_TYPE_UINT32,
-                .def.uint32 = 0xffffff00
+                .key = KEY_CONFIG_WIFI_AP_SUBNET,
+                .type = CONFIG_ITEM_TYPE_UINT8,
+                .def.uint8 = 24
         }, {
                 .key = KEY_CONFIG_WIFI_STA_ACTIVE,
                 .type = CONFIG_ITEM_TYPE_BOOL,
@@ -306,6 +306,30 @@ const config_item_t CONFIG_ITEMS[] = {
                 .type = CONFIG_ITEM_TYPE_STRING,
                 .secret = true,
                 .def.str = ""
+        }, {
+                .key = KEY_CONFIG_WIFI_STA_STATIC,
+                .type = CONFIG_ITEM_TYPE_BOOL,
+                .def.bool1 = false
+        }, {
+                .key = KEY_CONFIG_WIFI_STA_IP,
+                .type = CONFIG_ITEM_TYPE_IP,
+                .def.uint32 = esp_netif_htonl(esp_netif_ip4_makeu32(192, 168, 0, 100))
+        }, {
+                .key = KEY_CONFIG_WIFI_STA_GATEWAY,
+                .type = CONFIG_ITEM_TYPE_IP,
+                .def.uint32 = esp_netif_htonl(esp_netif_ip4_makeu32(192, 168, 0, 1))
+        }, {
+                .key = KEY_CONFIG_WIFI_STA_SUBNET,
+                .type = CONFIG_ITEM_TYPE_UINT8,
+                .def.uint8 = 24
+        }, {
+                .key = KEY_CONFIG_WIFI_STA_DNS_A,
+                .type = CONFIG_ITEM_TYPE_IP,
+                .def.uint32 = esp_netif_htonl(esp_netif_ip4_makeu32(1, 1, 1, 1))
+        }, {
+                .key = KEY_CONFIG_WIFI_STA_DNS_B,
+                .type = CONFIG_ITEM_TYPE_IP,
+                .def.uint32 = esp_netif_htonl(esp_netif_ip4_makeu32(1, 0, 0, 1))
         }
 };
 
@@ -515,6 +539,7 @@ esp_err_t config_get_primitive(const config_item_t *item, void *out_value) {
             ret = nvs_get_u16(config_handle, item->key, out_value);
             break;
         case CONFIG_ITEM_TYPE_UINT32:
+        case CONFIG_ITEM_TYPE_IP:
             *((uint32_t *) out_value) = item->def.uint32;
             ret = nvs_get_u32(config_handle, item->key, out_value);
             break;

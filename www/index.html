@@ -28,7 +28,7 @@
             transition: all ease-in-out 0.25s;
         }
 
-        .card.disabled .card-body {
+        .card .card-body.disabled {
             opacity: 0.75;
             filter: blur(5px);
             pointer-events: none;
@@ -127,8 +127,8 @@
                     $(this).prop('disabled', disabled);
                     $(this).toggleClass('disabled', disabled);
 
-                    if ($(this).hasClass('card')) {
-                        $(this).find('.card-body :input').each(function() {
+                    if ($(this).is('div')) {
+                        $(this).find(':input').each(function() {
                             if (disabled) {
                                 $(this).data('prop-disabled-previous', $(this).prop('disabled') === true)
                                     .data('class-disabled-previous', $(this).hasClass('disabled'))
@@ -183,16 +183,25 @@
                 form.find(':input').each(function() {
                     if (!this.name || typeof data[this.name] === 'undefined') return;
 
-                    var value = data[this.name];
-                    var $this = $(this);
-                    if(this.type === 'checkbox' || this.type === 'radio' || (this.type === 'hidden' && $this.data('checkbox'))) {
-                        if (this.type !== 'hidden') {
-                            var active = $(this).val() == value;
-                            $this.prop('checked', active);
-                            $this.parent('.btn').toggleClass('active', active);
+                    let value = data[this.name];
+                    const $this = $(this);
+
+                    if (Array.isArray(value)) {
+                        const index = form.find(':input[name="' + this.name + '"]').index(this);
+
+                        if (value.length > index) {
+                            value = value[index];
                         } else {
-                            $this.prop('disabled', $(this).val() != value);
+                            return;
                         }
+                    }
+
+                    if (this.type === 'checkbox' || this.type === 'radio') {
+                        var active = $this.val() == value;
+                        $this.prop('checked', active);
+                        $this.parent('.btn').toggleClass('active', active);
+                    } else if (this.type === 'hidden' && $this.data('checkbox')) {
+                        $this.prop('disabled', $this.val() != value);
                     } else {
                         $this.val(value);
                     }
@@ -312,6 +321,7 @@
             };
             statusUpdate();
 
+            // WiFi Station networks list
             var wifiNetworksScanButton = form.find('.wifi-networks-scan');
             var wifiNetworksDropdownButton = form.find('.wifi-networks-dropdown');
             var wifiNetworksList = form.find('.wifi-networks');
@@ -359,62 +369,32 @@
                 wifiNetworksPasswordEmptyInput.prop('disabled', true);
             });
 
+            // WiFi Station IP configuration
+            var wifiStaSubnetInput = form.find('input[name="w_sta_subnet"]');
 
-            var wifiApIpByte1Input = form.find('input[name="w_ap_ip_1"]');
-            var wifiApIpByte2Input = form.find('input[name="w_ap_ip_2"]');
-            var wifiApIpByte3Input = form.find('input[name="w_ap_ip_3"]');
-            var wifiApIpByte4Input = form.find('input[name="w_ap_ip_4"]');
-            var wifiApIpPrefixText = form.find('.wifi-ap-ip-prefix');
+            // WiFi SoftAP IP configuration
+            var wifiApGwInputs = form.find('input[name="w_ap_gw"]');
+            var wifiApGwPrefixText = form.find('.wifi-ap-ip-prefix');
             var wifiApIpMinInput = form.find('input[name="w_ap_ip_min"]');
             var wifiApIpMaxInput = form.find('input[name="w_ap_ip_max"]');
-            var wifiApSubnetInput = form.find('select[name="w_ap_ip_sub"]');
+            var wifiApSubnetInput = form.find('select[name="w_ap_subnet"]');
 
-            var wifiApGatewayInput = form.find('input[name="w_ap_gw"]');
-            var wifiApNetmaskInput = form.find('input[name="w_ap_netmask"]');
-
-            wifiApGatewayInput.on('change', function() {
-                const ip = parseInt($(this).val());
-                const a = ip >>> 24;
-                const b = (ip >> 16) & 0xff;
-                const c = (ip >> 8) & 0xff;
-                const d = ip & 0xff;
-
-                wifiApIpByte1Input.val(a);
-                wifiApIpByte2Input.val(b);
-                wifiApIpByte3Input.val(c).trigger('change');
-                wifiApIpByte4Input.val(d).trigger('change');
-            });
-
-            wifiApNetmaskInput.on('change', function() {
-                const mask = ~(parseInt($(this).val()) - 1);
-                let subnet = 32 - Math.floor(Math.log2(mask));
-                if (subnet < 24 || subnet > 30) subnet = 24;
-
-                wifiApSubnetInput.val(subnet).trigger('change');
-            });
-
-            wifiApSubnetInput.add(wifiApIpByte3Input).add(wifiApIpByte4Input).on('change input', function() {
-                const a = parseInt(wifiApIpByte1Input.val());
-                const b = parseInt(wifiApIpByte2Input.val());
-                const c = parseInt(wifiApIpByte3Input.val());
-                const d = parseInt(wifiApIpByte4Input.val());
+            wifiApSubnetInput.add(wifiApGwInputs).on('change input', function() {
+                const parts = wifiApGwInputs.map((i, el) => Math.max(0, Math.min(255, el.value))).get();
                 const subnet = parseInt(wifiApSubnetInput.children('option:selected').val());
 
-                wifiApIpPrefixText.text(a + "." + b + "." + c + ".");
+                wifiApGwPrefixText.text(parts.slice(0, 3).join(".") + ".");
 
                 const mask = 255 >> (subnet - 24);
 
-                const ip = Math.max(0, Math.min(255, wifiApIpByte4Input.val()));
-                const min = (ip & ~mask) + 1;
-                const max = (ip | mask) - 1;
+                const d = parts[3];
+                const min = (d & ~mask) + 1;
+                const max = (d | mask) - 1;
 
-                wifiApIpByte4Input.prop('min', min).prop('max', max).toggleClass('is-invalid', ip < min || ip > max);
+                wifiApGwInputs.eq(3).prop('min', min).prop('max', max).toggleClass('is-invalid', d < min || d > max);
 
                 wifiApIpMinInput.val(min);
                 wifiApIpMaxInput.val(max);
-
-                wifiApNetmaskInput.val(0xffffffff - mask);
-                wifiApGatewayInput.val(((a << 24) + (b << 16) + (c << 8) + d) >>> 0);
             }).trigger('change');
 
             var socketClientConnectMessageInput = form.find('input[name="sck_cli_msg"]');
@@ -608,15 +588,15 @@
                         </div>
                     </div>
                     <!--
-                    <div data-disable-if="input[type='checkbox'][name='bt_active']" class="card mb-3">
+                    <div class="card mb-3">
                         <div class="card-header">
                             Bluetooth
                             <div class="custom-control custom-switch d-inline float-right">
-                                <input type="checkbox" name="bt_active" value="1" class="custom-control-input" id="switch-wifi-bluetooth">
+                                <input type="checkbox" name="bt_active" value="1" class="custom-control-input" id="switch-bluetooth">
                                 <label class="custom-control-label" for="switch-wifi-bluetooth"></label>
                             </div>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body" data-disable-if="#switch-bluetooth">
                             <div class="form-row mb-3">
                                 <div class="col-8">
                                     <label>Device name</label>
@@ -632,10 +612,10 @@
                                 <div class="col">
                                     <label>Pin code</label>
                                     <div class="input-group">
-                                        <input type="number" name="bt_pin_code_1" class="form-control text-center" maxlength="1" min="0" max="9" pattern="[0-9]" oninput="autoTab(this)" required/>
-                                        <input type="number" name="bt_pin_code_2" class="form-control text-center" maxlength="1" min="0" max="9" pattern="[0-9]" oninput="autoTab(this)" required/>
-                                        <input type="number" name="bt_pin_code_3" class="form-control text-center" maxlength="1" min="0" max="9" pattern="[0-9]" oninput="autoTab(this)" required/>
-                                        <input type="number" name="bt_pin_code_4" class="form-control text-center" maxlength="1" min="0" max="9" pattern="[0-9]" oninput="autoTab(this)" required/>
+                                        <input type="number" name="bt_pin_code" class="form-control text-center" maxlength="1" min="0" max="9" pattern="[0-9]" oninput="autoTab(this)" required/>
+                                        <input type="number" name="bt_pin_code" class="form-control text-center" maxlength="1" min="0" max="9" pattern="[0-9]" oninput="autoTab(this)" required/>
+                                        <input type="number" name="bt_pin_code" class="form-control text-center" maxlength="1" min="0" max="9" pattern="[0-9]" oninput="autoTab(this)" required/>
+                                        <input type="number" name="bt_pin_code" class="form-control text-center" maxlength="1" min="0" max="9" pattern="[0-9]" oninput="autoTab(this)" required/>
                                     </div>
                                 </div>
                             </div>
@@ -644,7 +624,7 @@
                     -->
                 </div>
                 <div class="col-xl-6">
-                    <div data-disable-if="#switch-wifi-ap" class="card mb-3">
+                    <div class="card mb-3">
                         <div class="card-header">
                             WiFi hotspot
                             <small class="wifi-ap-status"></small>
@@ -656,7 +636,7 @@
                                 <input type="color" name="w_ap_color" data-disable-if="#switch-wifi-ap" value="#ffffff" id="color-wifi-ap">
                             </div>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body" data-disable-if="#switch-wifi-ap">
                             <div class="form-row mb-3">
                                 <div class="col-6">
                                     <label>SSID</label>
@@ -688,22 +668,20 @@
                                 <div class="col-6">
                                     <label>Gateway and subnet</label>
                                     <div class="input-group">
-                                        <input type="hidden" name="w_ap_gw" data-formatted="true">
-                                        <input type="hidden" name="w_ap_netmask" data-formatted="true">
                                         <div class="input-group-prepend">
                                             <span class="input-group-text px-1">192.168.</span>
                                         </div>
-                                        <input type="hidden" name="w_ap_ip_1" value="192">
-                                        <input type="hidden" name="w_ap_ip_2" value="168">
-                                        <input type="number" name="w_ap_ip_3" value="4" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <input type="hidden" name="w_ap_gw" value="192">
+                                        <input type="hidden" name="w_ap_gw" value="168">
+                                        <input type="number" name="w_ap_gw" value="4" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
                                         <div class="input-group-append input-group-prepend">
                                             <span class="input-group-text px-1">.</span>
                                         </div>
-                                        <input type="number" name="w_ap_ip_4" value="1" maxlength="3" min="1" max="254" required class="form-control text-center px-1">
+                                        <input type="number" name="w_ap_gw" value="1" maxlength="3" min="1" max="254" required class="form-control text-center px-1">
                                         <div class="input-group-append input-group-prepend">
                                             <span class="input-group-text px-1">/</span>
                                         </div>
-                                        <select name="w_ap_ip_sub" class="custom-select px-2" required>
+                                        <select name="w_ap_subnet" class="custom-select px-2" required>
                                             <option value="24" selected>24</option>
                                             <option value="25">25</option>
                                             <option value="26">26</option>
@@ -715,7 +693,7 @@
                                     </div>
                                 </div>
                                 <div class="col">
-                                    <label>Min/max IP</label>
+                                    <label>Min/max IP address</label>
                                     <div class="input-group">
                                         <div class="input-group-prepend">
                                             <span class="wifi-ap-ip-prefix input-group-text">192.168.4.</span>
@@ -730,7 +708,7 @@
                             </div>
                         </div>
                     </div>
-                    <div data-disable-if="#switch-wifi-sta" class="card mb-3">
+                    <div class="card mb-3">
                         <div class="card-header">
                             WiFi
                             <small class="wifi-sta-status"></small>
@@ -742,9 +720,9 @@
                                 <input type="color" name="w_sta_color" data-disable-if="#switch-wifi-sta" value="#ffffff" id="color-wifi-sta">
                             </div>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body" data-disable-if="#switch-wifi-sta">
                             <div class="form-row mb-3">
-                                <div class="col-8">
+                                <div class="col-7">
                                     <label>SSID</label>
                                     <div class="input-group">
                                         <input type="text" name="w_sta_ssid" class="wifi-networks-ssid form-control" maxlength="32" required>
@@ -766,9 +744,121 @@
                                 </div>
                                 <div class="col">
                                     <label>Password</label>
+                                    <input type="hidden" name="w_sta_pass" class="wifi-networks-pass-empty" value="" disabled>
                                     <div class="input-group">
                                         <input type="password" name="w_sta_pass" class="wifi-networks-pass form-control">
-                                        <input type="hidden" name="w_sta_pass" class="wifi-networks-pass-empty" value="" disabled>
+                                    </div>
+                                </div>
+                                <div class="col-2">
+                                    <label class="d-block">IP config</label>
+                                    <div class="btn-group btn-group-toggle d-flex" data-toggle="buttons">
+                                        <label class="btn btn-outline-warning">
+                                            <input type="checkbox" value="1" name="w_sta_static"> Static
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div data-disable-if="input[type='checkbox'][name='w_sta_static']" class="form-row mb-3">
+                                <div class="col">
+                                    <label>IP address</label>
+                                    <div class="input-group">
+                                        <input type="number" name="w_sta_ip" value="192" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">.</span>
+                                        </div>
+                                        <input type="number" name="w_sta_ip" value="168" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">.</span>
+                                        </div>
+                                        <input type="number" name="w_sta_ip" value="0" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">.</span>
+                                        </div>
+                                        <input type="number" name="w_sta_ip" value="100" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                    </div>
+                                </div>
+                                <div class="col-7">
+                                    <label>Gateway and subnet</label>
+                                    <div class="input-group">
+                                        <input type="number" name="w_sta_gw" value="192" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">.</span>
+                                        </div>
+                                        <input type="number" name="w_sta_gw" value="168" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">.</span>
+                                        </div>
+                                        <input type="number" name="w_sta_gw" value="4" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">.</span>
+                                        </div>
+                                        <input type="number" name="w_sta_gw" value="1" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">/</span>
+                                        </div>
+                                        <select name="w_sta_subnet" class="custom-select px-2" required>
+                                            <option value="8">8</option>
+                                            <option value="9">9</option>
+                                            <option value="10">10</option>
+                                            <option value="11">11</option>
+                                            <option value="12">12</option>
+                                            <option value="13">13</option>
+                                            <option value="14">14</option>
+                                            <option value="15">15</option>
+                                            <option value="16">16</option>
+                                            <option value="17">17</option>
+                                            <option value="18">18</option>
+                                            <option value="19">19</option>
+                                            <option value="20">20</option>
+                                            <option value="21">21</option>
+                                            <option value="22">22</option>
+                                            <option value="23">23</option>
+                                            <option value="24" selected>24</option>
+                                            <option value="25">25</option>
+                                            <option value="26">26</option>
+                                            <option value="27">27</option>
+                                            <option value="28">28</option>
+                                            <option value="29">29</option>
+                                            <option value="30">30</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div data-disable-if="input[type='checkbox'][name='w_sta_static']" class="form-row mb-3">
+                                <div class="col">
+                                    <label>DNS</label>
+                                    <div class="input-group">
+                                        <input type="number" name="w_sta_dns_a" value="1" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">.</span>
+                                        </div>
+                                        <input type="number" name="w_sta_dns_a" value="1" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">.</span>
+                                        </div>
+                                        <input type="number" name="w_sta_dns_a" value="1" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">.</span>
+                                        </div>
+                                        <input type="number" name="w_sta_dns_a" value="1" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <label>Backup DNS</label>
+                                    <div class="input-group">
+                                        <input type="number" name="w_sta_dns_b" value="1" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">.</span>
+                                        </div>
+                                        <input type="number" name="w_sta_dns_b" value="0" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">.</span>
+                                        </div>
+                                        <input type="number" name="w_sta_dns_b" value="0" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">.</span>
+                                        </div>
+                                        <input type="number" name="w_sta_dns_b" value="1" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
                                     </div>
                                 </div>
                             </div>
@@ -783,7 +873,7 @@
             </div>
             <div class="row">
                 <div class="col-xl-6">
-                    <div data-disable-if="#switch-ntrip-client" class="card mb-3">
+                    <div class="card mb-3">
                         <div class="card-header">
                             NTRIP client
                             <small class="ntrip-client-stats stream-stats" data-stream="ntrip_client"></small>
@@ -795,7 +885,7 @@
                                 <input type="color" name="ntr_cli_color" data-disable-if="#switch-ntrip-client" value="#ffffff" id="color-ntrip-client">
                             </div>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body" data-disable-if="#switch-ntrip-client">
                             <div class="form-row mb-3">
                                 <div class="col">
                                     <label>Host and port</label>
@@ -843,7 +933,7 @@
                             </div>
                         </div>
                     </div>
-                    <div data-disable-if="#switch-ntrip-server" class="card mb-3">
+                    <div class="card mb-3">
                         <div class="card-header">
                             NTRIP server
                             <small class="ntrip-server-stats stream-stats" data-stream="ntrip_server"></small>
@@ -855,7 +945,7 @@
                                 <input type="color" name="ntr_srv_color" data-disable-if="#switch-ntrip-server" value="#ffffff" id="color-ntrip-server">
                             </div>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body" data-disable-if="#switch-ntrip-server">
                             <div class="form-row mb-3">
                                 <div class="col">
                                     <label>Host and port</label>
@@ -903,7 +993,7 @@
                             </div>
                         </div>
                     </div>
-                    <div data-disable-if="#switch-ntrip-caster" class="card mb-3">
+                    <div class="card mb-3">
                         <div class="card-header">
                             NTRIP caster
                             <small class="ntrip-caster-stats stream-stats" data-stream="ntrip_caster"></small>
@@ -915,7 +1005,7 @@
                                 <input type="color" name="ntr_cst_color" data-disable-if="#switch-ntrip-caster" value="#ffffff" id="color-ntrip-caster">
                             </div>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body" data-disable-if="#switch-ntrip-caster">
                             <div class="form-row mb-3">
                                 <div class="col">
                                     <label>Port</label>
@@ -946,7 +1036,7 @@
                     </div>
                 </div>
                 <div class="col-xl-6">
-                    <div data-disable-if="#switch-socket-server" class="card mb-3">
+                    <div class="card mb-3">
                         <div class="card-header">
                             Socket server
                             <small class="socket-server-stats stream-stats" data-stream="socket_server"></small>
@@ -958,7 +1048,7 @@
                                 <input type="color" name="sck_srv_color" data-disable-if="#switch-socket-server" value="#ffffff" id="color-socket-server">
                             </div>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body" data-disable-if="#switch-socket-server">
                             <div class="form-row mb-3">
                                 <div class="col">
                                     <label>TCP port</label>
@@ -975,7 +1065,7 @@
                             </div>
                         </div>
                     </div>
-                    <div data-disable-if="#switch-socket-client" class="card mb-3">
+                    <div class="card mb-3">
                         <div class="card-header">
                             Socket client
                             <small class="socket-client-stats stream-stats" data-stream="socket_client"></small>
@@ -987,7 +1077,7 @@
                                 <input type="color" name="sck_cli_color" data-disable-if="#switch-socket-client" value="#ffffff" id="color-socket-client">
                             </div>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body" data-disable-if="#switch-socket-client">
                             <div class="form-row mb-3">
                                 <div class="col-8">
                                     <label>Host and port</label>

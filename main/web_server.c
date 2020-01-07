@@ -373,9 +373,12 @@ static esp_err_t config_get_handler(httpd_req_t *req) {
 
         int64_t int64 = 0;
         uint64_t uint64 = 0;
+
         size_t length = 0;
-        char *string;
+        char *string = NULL;
+
         config_color_t color;
+        esp_ip4_addr_t ip;
 
         switch (item->type) {
             case CONFIG_ITEM_TYPE_STRING:
@@ -392,6 +395,14 @@ static esp_err_t config_get_handler(httpd_req_t *req) {
                 // Convert to hex
                 ESP_ERROR_CHECK_WITHOUT_ABORT(config_get_primitive(item, &color));
                 asprintf(&string, "#%02x%02x%02x", color.values.red, color.values.green, color.values.blue);
+                break;
+            case CONFIG_ITEM_TYPE_IP:
+                ESP_ERROR_CHECK_WITHOUT_ABORT(config_get_primitive(item, &ip));
+                cJSON *ip_parts = cJSON_AddArrayToObject(root, item->key);
+                for (int b = 0; b < 4; b++) {
+                    cJSON_AddItemToArray(ip_parts, cJSON_CreateNumber(esp_ip4_addr_get_byte(&ip, b)));
+                }
+
                 break;
             case CONFIG_ITEM_TYPE_UINT8:
             case CONFIG_ITEM_TYPE_UINT16:
@@ -413,11 +424,13 @@ static esp_err_t config_get_handler(httpd_req_t *req) {
                 break;
         }
 
-        // Hide secret values that aren't empty
-        char *value = item->secret && strlen(string) > 0 ? CONFIG_VALUE_UNCHANGED : string;
-        cJSON_AddStringToObject(root, item->key, value);
+        if (string != NULL) {
+            // Hide secret values that aren't empty
+            char *value = item->secret && strlen(string) > 0 ? CONFIG_VALUE_UNCHANGED : string;
+            cJSON_AddStringToObject(root, item->key, value);
 
-        free(string);
+            free(string);
+        }
     }
 
     return json_response(req, root);
@@ -447,14 +460,18 @@ static esp_err_t config_post_handler(httpd_req_t *req) {
         if (cJSON_HasObjectItem(root, item.key)) {
             cJSON *entry = cJSON_GetObjectItem(root, item.key);
 
-            size_t length = strlen(entry->valuestring);
+            size_t length = 0;
+            if (cJSON_IsString(entry)) {
+                length = strlen(entry->valuestring);
 
-            // Ignore empty primitives
-            if (length == 0 && item.type != CONFIG_ITEM_TYPE_BLOB && item.type != CONFIG_ITEM_TYPE_STRING) continue;
+                // Ignore empty primitives
+                if (length == 0 && item.type != CONFIG_ITEM_TYPE_BLOB && item.type != CONFIG_ITEM_TYPE_STRING) continue;
 
-            // Ignore unchanged values
-            if (strcmp(entry->valuestring, CONFIG_VALUE_UNCHANGED) == 0) continue;
+                // Ignore unchanged values
+                if (strcmp(entry->valuestring, CONFIG_VALUE_UNCHANGED) == 0) continue;
+            }
 
+            // TODO: Cleanup
             esp_err_t err;
             if (item.type > CONFIG_ITEM_TYPE_MAX) {
                 err = ESP_ERR_INVALID_ARG;
@@ -474,6 +491,19 @@ static esp_err_t config_post_handler(httpd_req_t *req) {
                     if (!is_black) color.values.alpha = item.def.color.values.alpha;
 
                     err = config_set_color(item.key, color);
+                }
+            } else if (item.type == CONFIG_ITEM_TYPE_IP) {
+                uint8_t a[4];
+
+                if (!cJSON_IsArray(entry) || cJSON_GetArraySize(entry) != 4) {
+                    err = ESP_ERR_INVALID_ARG;
+                } else {
+                    for (int b = 0; b < 4; b++) {
+                        a[b] = (uint8_t) strtoul(cJSON_GetArrayItem(entry, b)->valuestring, NULL, 10);
+                    }
+;
+                    uint32_t ip = esp_netif_htonl(esp_netif_ip4_makeu32(a[0], a[1], a[2], a[3]));
+                    err = config_set_u32(item.key, ip);
                 }
             } else {
                 bool is_zero = strcmp(entry->valuestring, "0") == 0 || strcmp(entry->valuestring, "0.0") == 0;
