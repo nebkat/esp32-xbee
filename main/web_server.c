@@ -314,6 +314,23 @@ static esp_err_t file_get_handler(httpd_req_t *req) {
         return ESP_FAIL;
     }
 
+    unsigned long checksum = file_stat.st_size + file_stat.st_mtime;
+    char etag[19];
+    snprintf(etag, 19, "\"%016lX\"", checksum);
+
+    size_t if_none_match_length = httpd_req_get_hdr_value_len(req, "If-None-Match") + 1;
+    if (if_none_match_length > 1) {
+        char *if_none_match = malloc(if_none_match_length);
+        httpd_req_get_hdr_value_str(req, "If-None-Match", if_none_match, if_none_match_length);
+
+        if (strcmp(etag, if_none_match) == 0) {
+            httpd_resp_set_status(req, "304 Not Modified");
+            httpd_resp_send(req, NULL, 0);
+            return ESP_OK;
+        }
+    }
+
+
     fd = fopen(filepath, "r");
     if (!fd) {
         ESP_LOGE(TAG, "Failed to read existing file : %s", filepath);
@@ -324,9 +341,11 @@ static esp_err_t file_get_handler(httpd_req_t *req) {
 
     ESP_LOGI(TAG, "Sending file : %s (%ld bytes)...", filename, file_stat.st_size);
     set_content_type_from_file(req, filename);
+    httpd_resp_set_hdr(req, "ETag", etag);
 
+    // Cache JS/CSS for 15 minutes
     if (!IS_FILE_EXT(filename, ".html")) {
-        httpd_resp_set_hdr(req, "Cache-Control", "max-age=1800");
+        httpd_resp_set_hdr(req, "Cache-Control", "max-age=900");
     }
 
     /* Retrieve the pointer to scratch buffer for temporary storage */
