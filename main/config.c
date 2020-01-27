@@ -307,6 +307,10 @@ const config_item_t CONFIG_ITEMS[] = {
                 .secret = true,
                 .def.str = ""
         }, {
+                .key = KEY_CONFIG_WIFI_STA_SCAN_MODE_ALL,
+                .type = CONFIG_ITEM_TYPE_BOOL,
+                .def.bool1 = false
+        }, {
                 .key = KEY_CONFIG_WIFI_STA_STATIC,
                 .type = CONFIG_ITEM_TYPE_BOOL,
                 .def.bool1 = false

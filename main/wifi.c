@@ -339,9 +339,15 @@ void wifi_init() {
         size_t sta_password_len = sizeof(config_sta.sta.password);
         config_get_str_blob(CONF_ITEM(KEY_CONFIG_WIFI_STA_PASSWORD), &config_sta.sta.password, &sta_password_len);
         sta_password_len--; // Remove null terminator from length
+        config_sta.sta.scan_method = config_get_bool1(CONF_ITEM(KEY_CONFIG_WIFI_STA_SCAN_MODE_ALL))
+                ? WIFI_ALL_CHANNEL_SCAN : WIFI_FAST_SCAN;
 
-        ESP_LOGI(TAG, "WIFI_STA_CONNECTING: %s (%s)", config_sta.sta.ssid, sta_password_len == 0 ? "open" : "with password");
-        uart_nmea("$PESP,WIFI,STA,CONNECTING,%s,%c", config_sta.sta.ssid, sta_password_len == 0 ? 'O' : 'P');
+        ESP_LOGI(TAG, "WIFI_STA_CONNECTING: %s (%s), %s scan", config_sta.sta.ssid,
+                sta_password_len == 0 ? "open" : "with password",
+                config_sta.sta.scan_method == WIFI_ALL_CHANNEL_SCAN ? "all channel" : "fast");
+        uart_nmea("$PESP,WIFI,STA,CONNECTING,%s,%c,%c", config_sta.sta.ssid,
+                sta_password_len == 0 ? 'O' : 'P',
+                config_sta.sta.scan_method == WIFI_ALL_CHANNEL_SCAN ? 'A' : 'F');
     }
 
     // Listen for WiFi and IP events

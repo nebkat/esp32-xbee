@@ -37,6 +37,11 @@
         footer {
             padding: 20px 0;
         }
+
+        .tooltip-inner {
+            max-width: 95vw;
+            width: 300px;
+        }
     </style>
     <script>
         var releases_api_url = 'https://api.github.com/repos/nebkat/esp32-xbee/releases';
@@ -77,6 +82,12 @@
         }
 
         $(function() {
+            $('[data-toggle="tooltip"]').tooltip({
+                animation: false,
+                container: 'body',
+                html: true
+            });
+
             var form = $("#form");
 
             form.on('submit', function(e) {
@@ -447,6 +458,178 @@
                 <div class="col-xl-6">
                     <div class="card mb-3">
                         <div class="card-header">
+                            WiFi
+                            <small class="wifi-sta-status"></small>
+                            <div class="custom-control custom-switch d-inline float-right">
+                                <input type="checkbox" name="w_sta_active" value="1" checked class="custom-control-input" id="switch-wifi-sta">
+                                <label class="custom-control-label" for="switch-wifi-sta"></label>
+                            </div>
+                            <div class="d-inline mr-1 float-right">
+                                <input type="color" name="w_sta_color" data-disable-if="#switch-wifi-sta" value="#ffffff" id="color-wifi-sta">
+                            </div>
+                        </div>
+                        <div class="card-body" data-disable-if="#switch-wifi-sta">
+                            <div class="form-row mb-3">
+                                <div class="col-8">
+                                    <label>SSID</label>
+                                    <div class="input-group">
+                                        <input type="text" name="w_sta_ssid" class="wifi-networks-ssid form-control" maxlength="32" required>
+                                        <div class="input-group-append">
+                                            <button type="button" class="wifi-networks-dropdown btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" data-toggle="dropdown" disabled></button>
+                                            <div class="wifi-networks dropdown-menu">
+                                                <h6 class="dropdown-header">Open networks</h6>
+                                                <span class="wifi-networks-open">
+                                                </span>
+                                                <h6 class="dropdown-header">Secured networks</h6>
+                                                <span class="wifi-networks-secured">
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div class="input-group-append">
+                                            <button type="button" class="wifi-networks-scan btn btn-outline-secondary">Scan</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <label>Password</label>
+                                    <input type="hidden" name="w_sta_pass" class="wifi-networks-pass-empty" value="" disabled>
+                                    <div class="input-group">
+                                        <input type="password" name="w_sta_pass" class="wifi-networks-pass form-control">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-row mb-3">
+                                <div class="col-6">
+                                    <label class="d-block">Scan mode <small class="text-muted" data-toggle="tooltip" title="In fast scan mode, WiFi channels are scanned sequentially and a connection is made to the first matching SSID.<br><br>In all channel mode, every channel is scanned and if multiple matching SSIDs are found, the one with the strongest signal is chosen, but the process can be significantly slower.<br><br>This is useful in environments where there are a number of APs with the same SSID covering a large area. If you only have a single AP, fast mode is preferred.">?</small></label>
+                                    <div class="btn-group btn-group-toggle d-flex" data-toggle="buttons">
+                                        <label class="btn btn-outline-secondary">
+                                            <input type="radio" name="w_sta_scan_mode" value="0" checked> Fast
+                                        </label>
+                                        <label class="btn btn-outline-secondary">
+                                            <input type="radio" name="w_sta_scan_mode" value="1"> All Channels
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <label class="d-block">IP config <small class="text-muted" data-toggle="tooltip" title="In DHCP mode, IPs will automatically be configured by the network upon successful connection.<br><br>In static mode, the IPs are hardcoded and must be set up correctly for the given WiFi network, but the connection is faster.">?</small></label>
+                                    <div class="btn-group btn-group-toggle d-flex" data-toggle="buttons">
+                                        <label class="btn btn-outline-success">
+                                            <input type="radio" name="w_sta_static" value="0" checked> DHCP
+                                        </label>
+                                        <label class="btn btn-outline-warning">
+                                            <input type="radio" name="w_sta_static" value="1"> Static
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div data-disable-if="input[type='checkbox'][name='w_sta_static']" class="form-row mb-3">
+                                <div class="col">
+                                    <label>IP address</label>
+                                    <div class="input-group">
+                                        <input type="number" name="w_sta_ip" value="192" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">.</span>
+                                        </div>
+                                        <input type="number" name="w_sta_ip" value="168" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">.</span>
+                                        </div>
+                                        <input type="number" name="w_sta_ip" value="0" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">.</span>
+                                        </div>
+                                        <input type="number" name="w_sta_ip" value="100" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                    </div>
+                                </div>
+                                <div class="col-7">
+                                    <label>Gateway and subnet</label>
+                                    <div class="input-group">
+                                        <input type="number" name="w_sta_gw" value="192" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">.</span>
+                                        </div>
+                                        <input type="number" name="w_sta_gw" value="168" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">.</span>
+                                        </div>
+                                        <input type="number" name="w_sta_gw" value="4" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">.</span>
+                                        </div>
+                                        <input type="number" name="w_sta_gw" value="1" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">/</span>
+                                        </div>
+                                        <select name="w_sta_subnet" class="custom-select px-2" required>
+                                            <option value="8">8</option>
+                                            <option value="9">9</option>
+                                            <option value="10">10</option>
+                                            <option value="11">11</option>
+                                            <option value="12">12</option>
+                                            <option value="13">13</option>
+                                            <option value="14">14</option>
+                                            <option value="15">15</option>
+                                            <option value="16">16</option>
+                                            <option value="17">17</option>
+                                            <option value="18">18</option>
+                                            <option value="19">19</option>
+                                            <option value="20">20</option>
+                                            <option value="21">21</option>
+                                            <option value="22">22</option>
+                                            <option value="23">23</option>
+                                            <option value="24" selected>24</option>
+                                            <option value="25">25</option>
+                                            <option value="26">26</option>
+                                            <option value="27">27</option>
+                                            <option value="28">28</option>
+                                            <option value="29">29</option>
+                                            <option value="30">30</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div data-disable-if="input[type='checkbox'][name='w_sta_static']" class="form-row mb-3">
+                                <div class="col">
+                                    <label>DNS</label>
+                                    <div class="input-group">
+                                        <input type="number" name="w_sta_dns_a" value="1" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">.</span>
+                                        </div>
+                                        <input type="number" name="w_sta_dns_a" value="1" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">.</span>
+                                        </div>
+                                        <input type="number" name="w_sta_dns_a" value="1" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">.</span>
+                                        </div>
+                                        <input type="number" name="w_sta_dns_a" value="1" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <label>Backup DNS</label>
+                                    <div class="input-group">
+                                        <input type="number" name="w_sta_dns_b" value="1" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">.</span>
+                                        </div>
+                                        <input type="number" name="w_sta_dns_b" value="0" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">.</span>
+                                        </div>
+                                        <input type="number" name="w_sta_dns_b" value="0" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                        <div class="input-group-append input-group-prepend">
+                                            <span class="input-group-text px-1">.</span>
+                                        </div>
+                                        <input type="number" name="w_sta_dns_b" value="1" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mb-3">
+                        <div class="card-header">
                             Admin (this page)
                         </div>
                         <div class="card-body">
@@ -467,122 +650,6 @@
                                 <div class="col-4">
                                     <label>Password</label>
                                     <input type="password" name="adm_pass" data-disable-if="select[name='adm_auth'] > option[value!='2']" data-disable-if-condition=":selected" class="form-control" maxlength="64" required/>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card mb-3">
-                        <div class="card-header">
-                            UART (main communication)
-                            <small class="uart-stats stream-stats" data-stream="uart"></small>
-                        </div>
-                        <div class="card-body">
-                            <div class="form-row mb-3">
-                                <div class="col-8">
-                                    <label class="d-block">UART controller</label>
-                                    <div class="btn-group btn-group-toggle d-flex" data-toggle="buttons">
-                                        <label class="btn btn-outline-secondary active">
-                                            <input type="radio" name="uart_num" value="0" checked> UART&nbsp;0
-                                        </label>
-                                        <label class="btn btn-outline-secondary">
-                                            <input type="radio" name="uart_num" value="1"> UART&nbsp;1
-                                        </label>
-                                        <label class="btn btn-outline-secondary">
-                                            <input type="radio" name="uart_num" value="2"> UART&nbsp;2
-                                        </label>
-                                    </div>
-                                </div>
-                                <div class="col">
-                                    <label>TX pin</label>
-                                    <input type="number" name="uart_tx_pin" class="form-control" placeholder="1" value="1" required>
-                                </div>
-                                <div class="col">
-                                    <label>RX pin</label>
-                                    <input type="number" name="uart_rx_pin" class="form-control" placeholder="3" value="3" required>
-                                </div>
-                            </div>
-                            <div class="form-row mb-3">
-                                <div class="col-md-4 col-6">
-                                    <label>Baud rate</label>
-                                    <div class="input-group">
-                                        <select name="uart_baud_rate" class="custom-select" required>
-                                            <option value="9600">9600</option>
-                                            <option value="19200">19200</option>
-                                            <option value="38400">38400</option>
-                                            <option value="57600">57600</option>
-                                            <option value="115200" selected>115200</option>
-                                            <option value="230400">230400</option>
-                                            <option value="460800">460800</option>
-                                            <option value="921600">921600</option>
-                                        </select>
-                                        <div class="input-group-append">
-                                            <span class="input-group-text px-2">baud</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md col-6">
-                                    <label>Data bits</label>
-                                    <div class="input-group">
-                                        <select name="uart_data_bits" class="custom-select" required>
-                                            <option value="0">5</option>
-                                            <option value="1">6</option>
-                                            <option value="2">7</option>
-                                            <option value="3" selected>8</option>
-                                        </select>
-                                        <div class="input-group-append">
-                                            <span class="input-group-text px-2">bits</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md col-6">
-                                    <label>Stop bits</label>
-                                    <div class="input-group">
-                                        <select name="uart_stop_bits" class="custom-select" required>
-                                            <option value="1" selected>1</option>
-                                            <option value="2">1.5</option>
-                                            <option value="3">2</option>
-                                        </select>
-                                        <div class="input-group-append">
-                                            <span class="input-group-text px-2">bits</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md col-6">
-                                    <label>Parity</label>
-                                    <select name="uart_parity" class="custom-select px-2" required>
-                                        <option value="0" selected>Disabled</option>
-                                        <option value="2">Even</option>
-                                        <option value="3">Odd</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="form-row">
-                                <div class="col-3">
-                                    <label class="d-block">Log forward</label>
-                                    <div class="btn-group btn-group-toggle d-flex" data-toggle="buttons">
-                                        <label class="btn btn-outline-warning">
-                                            <input type="checkbox" value="1" name="uart_log_fwd"> Print
-                                        </label>
-                                    </div>
-                                </div>
-                                <div class="col-5">
-                                    <label class="d-block">Flow control</label>
-                                    <div class="btn-group btn-group-toggle d-flex" data-toggle="buttons">
-                                        <label class="btn btn-outline-success">
-                                            <input type="checkbox" value="1" name="uart_fc_rts"> RTS
-                                        </label>
-                                        <label class="btn btn-outline-primary">
-                                            <input type="checkbox" value="1" name="uart_fc_cts"> CTS
-                                        </label>
-                                    </div>
-                                </div>
-                                <div class="col">
-                                    <label>RTS pin</label>
-                                    <input type="number" name="uart_rts_pin" data-disable-if="input[type='checkbox'][name='uart_fc_rts']" class="form-control" placeholder="22" value="22" required>
-                                </div>
-                                <div class="col">
-                                    <label>CTS pin</label>
-                                    <input type="number" name="uart_cts_pin" data-disable-if="input[type='checkbox'][name='uart_fc_cts']" class="form-control" placeholder="19" value="19" required>
                                 </div>
                             </div>
                         </div>
@@ -710,156 +777,116 @@
                     </div>
                     <div class="card mb-3">
                         <div class="card-header">
-                            WiFi
-                            <small class="wifi-sta-status"></small>
-                            <div class="custom-control custom-switch d-inline float-right">
-                                <input type="checkbox" name="w_sta_active" value="1" checked class="custom-control-input" id="switch-wifi-sta">
-                                <label class="custom-control-label" for="switch-wifi-sta"></label>
-                            </div>
-                            <div class="d-inline mr-1 float-right">
-                                <input type="color" name="w_sta_color" data-disable-if="#switch-wifi-sta" value="#ffffff" id="color-wifi-sta">
-                            </div>
+                            UART (main communication)
+                            <small class="uart-stats stream-stats" data-stream="uart"></small>
                         </div>
-                        <div class="card-body" data-disable-if="#switch-wifi-sta">
+                        <div class="card-body">
                             <div class="form-row mb-3">
-                                <div class="col-7">
-                                    <label>SSID</label>
-                                    <div class="input-group">
-                                        <input type="text" name="w_sta_ssid" class="wifi-networks-ssid form-control" maxlength="32" required>
-                                        <div class="input-group-append">
-                                            <button type="button" class="wifi-networks-dropdown btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" data-toggle="dropdown" disabled></button>
-                                            <div class="wifi-networks dropdown-menu">
-                                                <h6 class="dropdown-header">Open networks</h6>
-                                                <span class="wifi-networks-open">
-                                                </span>
-                                                <h6 class="dropdown-header">Secured networks</h6>
-                                                <span class="wifi-networks-secured">
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div class="input-group-append">
-                                            <button type="button" class="wifi-networks-scan btn btn-outline-secondary">Scan</button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col">
-                                    <label>Password</label>
-                                    <input type="hidden" name="w_sta_pass" class="wifi-networks-pass-empty" value="" disabled>
-                                    <div class="input-group">
-                                        <input type="password" name="w_sta_pass" class="wifi-networks-pass form-control">
-                                    </div>
-                                </div>
-                                <div class="col-2">
-                                    <label class="d-block">IP config</label>
+                                <div class="col-8">
+                                    <label class="d-block">UART controller</label>
                                     <div class="btn-group btn-group-toggle d-flex" data-toggle="buttons">
-                                        <label class="btn btn-outline-warning">
-                                            <input type="checkbox" value="1" name="w_sta_static"> Static
+                                        <label class="btn btn-outline-secondary active">
+                                            <input type="radio" name="uart_num" value="0" checked> UART&nbsp;0
+                                        </label>
+                                        <label class="btn btn-outline-secondary">
+                                            <input type="radio" name="uart_num" value="1"> UART&nbsp;1
+                                        </label>
+                                        <label class="btn btn-outline-secondary">
+                                            <input type="radio" name="uart_num" value="2"> UART&nbsp;2
                                         </label>
                                     </div>
                                 </div>
-                            </div>
-                            <div data-disable-if="input[type='checkbox'][name='w_sta_static']" class="form-row mb-3">
                                 <div class="col">
-                                    <label>IP address</label>
-                                    <div class="input-group">
-                                        <input type="number" name="w_sta_ip" value="192" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
-                                        <div class="input-group-append input-group-prepend">
-                                            <span class="input-group-text px-1">.</span>
-                                        </div>
-                                        <input type="number" name="w_sta_ip" value="168" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
-                                        <div class="input-group-append input-group-prepend">
-                                            <span class="input-group-text px-1">.</span>
-                                        </div>
-                                        <input type="number" name="w_sta_ip" value="0" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
-                                        <div class="input-group-append input-group-prepend">
-                                            <span class="input-group-text px-1">.</span>
-                                        </div>
-                                        <input type="number" name="w_sta_ip" value="100" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
-                                    </div>
+                                    <label>TX pin</label>
+                                    <input type="number" name="uart_tx_pin" class="form-control" placeholder="1" value="1" required>
                                 </div>
-                                <div class="col-7">
-                                    <label>Gateway and subnet</label>
+                                <div class="col">
+                                    <label>RX pin</label>
+                                    <input type="number" name="uart_rx_pin" class="form-control" placeholder="3" value="3" required>
+                                </div>
+                            </div>
+                            <div class="form-row mb-3">
+                                <div class="col-md-4 col-6">
+                                    <label>Baud rate</label>
                                     <div class="input-group">
-                                        <input type="number" name="w_sta_gw" value="192" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
-                                        <div class="input-group-append input-group-prepend">
-                                            <span class="input-group-text px-1">.</span>
-                                        </div>
-                                        <input type="number" name="w_sta_gw" value="168" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
-                                        <div class="input-group-append input-group-prepend">
-                                            <span class="input-group-text px-1">.</span>
-                                        </div>
-                                        <input type="number" name="w_sta_gw" value="4" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
-                                        <div class="input-group-append input-group-prepend">
-                                            <span class="input-group-text px-1">.</span>
-                                        </div>
-                                        <input type="number" name="w_sta_gw" value="1" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
-                                        <div class="input-group-append input-group-prepend">
-                                            <span class="input-group-text px-1">/</span>
-                                        </div>
-                                        <select name="w_sta_subnet" class="custom-select px-2" required>
-                                            <option value="8">8</option>
-                                            <option value="9">9</option>
-                                            <option value="10">10</option>
-                                            <option value="11">11</option>
-                                            <option value="12">12</option>
-                                            <option value="13">13</option>
-                                            <option value="14">14</option>
-                                            <option value="15">15</option>
-                                            <option value="16">16</option>
-                                            <option value="17">17</option>
-                                            <option value="18">18</option>
-                                            <option value="19">19</option>
-                                            <option value="20">20</option>
-                                            <option value="21">21</option>
-                                            <option value="22">22</option>
-                                            <option value="23">23</option>
-                                            <option value="24" selected>24</option>
-                                            <option value="25">25</option>
-                                            <option value="26">26</option>
-                                            <option value="27">27</option>
-                                            <option value="28">28</option>
-                                            <option value="29">29</option>
-                                            <option value="30">30</option>
+                                        <select name="uart_baud_rate" class="custom-select" required>
+                                            <option value="9600">9600</option>
+                                            <option value="19200">19200</option>
+                                            <option value="38400">38400</option>
+                                            <option value="57600">57600</option>
+                                            <option value="115200" selected>115200</option>
+                                            <option value="230400">230400</option>
+                                            <option value="460800">460800</option>
+                                            <option value="921600">921600</option>
                                         </select>
+                                        <div class="input-group-append">
+                                            <span class="input-group-text px-2">baud</span>
+                                        </div>
                                     </div>
+                                </div>
+                                <div class="col-md col-6">
+                                    <label>Data bits</label>
+                                    <div class="input-group">
+                                        <select name="uart_data_bits" class="custom-select" required>
+                                            <option value="0">5</option>
+                                            <option value="1">6</option>
+                                            <option value="2">7</option>
+                                            <option value="3" selected>8</option>
+                                        </select>
+                                        <div class="input-group-append">
+                                            <span class="input-group-text px-2">bits</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md col-6">
+                                    <label>Stop bits</label>
+                                    <div class="input-group">
+                                        <select name="uart_stop_bits" class="custom-select" required>
+                                            <option value="1" selected>1</option>
+                                            <option value="2">1.5</option>
+                                            <option value="3">2</option>
+                                        </select>
+                                        <div class="input-group-append">
+                                            <span class="input-group-text px-2">bits</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md col-6">
+                                    <label>Parity</label>
+                                    <select name="uart_parity" class="custom-select px-2" required>
+                                        <option value="0" selected>Disabled</option>
+                                        <option value="2">Even</option>
+                                        <option value="3">Odd</option>
+                                    </select>
                                 </div>
                             </div>
-                            <div data-disable-if="input[type='checkbox'][name='w_sta_static']" class="form-row mb-3">
-                                <div class="col">
-                                    <label>DNS</label>
-                                    <div class="input-group">
-                                        <input type="number" name="w_sta_dns_a" value="1" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
-                                        <div class="input-group-append input-group-prepend">
-                                            <span class="input-group-text px-1">.</span>
-                                        </div>
-                                        <input type="number" name="w_sta_dns_a" value="1" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
-                                        <div class="input-group-append input-group-prepend">
-                                            <span class="input-group-text px-1">.</span>
-                                        </div>
-                                        <input type="number" name="w_sta_dns_a" value="1" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
-                                        <div class="input-group-append input-group-prepend">
-                                            <span class="input-group-text px-1">.</span>
-                                        </div>
-                                        <input type="number" name="w_sta_dns_a" value="1" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
+                            <div class="form-row">
+                                <div class="col-3">
+                                    <label class="d-block">Log forward  <small class="text-muted" data-toggle="tooltip" title="If enabled, log messages (normally sent to UART1, and visible on the /log.html page) are forwarded to the main UART, primarily for debugging purposes. This setting can interfere with normal communication over UART0.">?</small></label>
+                                    <div class="btn-group btn-group-toggle d-flex" data-toggle="buttons">
+                                        <label class="btn btn-outline-warning">
+                                            <input type="checkbox" value="1" name="uart_log_fwd"> Print
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-5">
+                                    <label class="d-block">Flow control</label>
+                                    <div class="btn-group btn-group-toggle d-flex" data-toggle="buttons">
+                                        <label class="btn btn-outline-success">
+                                            <input type="checkbox" value="1" name="uart_fc_rts"> RTS
+                                        </label>
+                                        <label class="btn btn-outline-primary">
+                                            <input type="checkbox" value="1" name="uart_fc_cts"> CTS
+                                        </label>
                                     </div>
                                 </div>
                                 <div class="col">
-                                    <label>Backup DNS</label>
-                                    <div class="input-group">
-                                        <input type="number" name="w_sta_dns_b" value="1" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
-                                        <div class="input-group-append input-group-prepend">
-                                            <span class="input-group-text px-1">.</span>
-                                        </div>
-                                        <input type="number" name="w_sta_dns_b" value="0" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
-                                        <div class="input-group-append input-group-prepend">
-                                            <span class="input-group-text px-1">.</span>
-                                        </div>
-                                        <input type="number" name="w_sta_dns_b" value="0" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
-                                        <div class="input-group-append input-group-prepend">
-                                            <span class="input-group-text px-1">.</span>
-                                        </div>
-                                        <input type="number" name="w_sta_dns_b" value="1" maxlength="3" min="0" max="255" required class="form-control text-center px-1">
-                                    </div>
+                                    <label>RTS pin</label>
+                                    <input type="number" name="uart_rts_pin" data-disable-if="input[type='checkbox'][name='uart_fc_rts']" class="form-control" placeholder="22" value="22" required>
+                                </div>
+                                <div class="col">
+                                    <label>CTS pin</label>
+                                    <input type="number" name="uart_cts_pin" data-disable-if="input[type='checkbox'][name='uart_fc_cts']" class="form-control" placeholder="19" value="19" required>
                                 </div>
                             </div>
                         </div>
