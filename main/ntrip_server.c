@@ -34,27 +34,48 @@ static const char *TAG = "NTRIP_SERVER";
 #define BUFFER_SIZE 512
 
 static int sock = -1;
-static int server_keep_alive;
+static int data_keep_alive;
+static SemaphoreHandle_t data_ready;
 
 static status_led_handle_t status_led = NULL;
 static stream_stats_handle_t stream_stats = NULL;
 
+static TaskHandle_t server_task = NULL;
+static TaskHandle_t sleep_task = NULL;
+
 static void ntrip_server_uart_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) {
+    xSemaphoreGive(data_ready);
+    data_keep_alive = 0;
+
     if (sock == -1) return;
 
     uart_data_t *data = event_data;
     int sent = write(sock, data->buffer, data->len);
     if (sent < 0) {
         destroy_socket(&sock);
+        vTaskResume(server_task);
     } else {
         stream_stats_increment(stream_stats, 0, sent);
     }
+}
 
-    server_keep_alive = 0;
+static void ntrip_server_sleep_task(void *ctx) {
+    while (true) {
+        // If wait time exceeded, take semaphore (if it is available)
+        if (data_keep_alive == NTRIP_KEEP_ALIVE_THRESHOLD) {
+            xSemaphoreTake(data_ready, 0);
+            ESP_LOGW(TAG, "No data received by UART in %d seconds, will not reconnect to caster if disconnected", NTRIP_KEEP_ALIVE_THRESHOLD / 1000);
+        }
+        data_keep_alive += NTRIP_KEEP_ALIVE_THRESHOLD / 10;
+        vTaskDelay(pdMS_TO_TICKS(NTRIP_KEEP_ALIVE_THRESHOLD / 10));
+    }
 }
 
 static void ntrip_server_task(void *ctx) {
+    data_ready = xSemaphoreCreateBinary();
     uart_register_handler(ntrip_server_uart_handler);
+    xTaskCreate(ntrip_server_sleep_task, "ntrip_server_sleep_task", 2048, NULL, TASK_PRIORITY_NTRIP, &sleep_task);
+    vTaskSuspend(sleep_task);
 
     config_color_t status_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_NTRIP_SERVER_COLOR));
     if (status_led_color.rgba != 0) status_led = status_led_add(status_led_color.rgba, STATUS_LED_FADE, 500, 2000, 0);
@@ -66,6 +87,15 @@ static void ntrip_server_task(void *ctx) {
 
     while (true) {
         retry_delay(delay_handle);
+
+        // Wait for data to be available
+        if (uxSemaphoreGetCount(data_ready) == 0) {
+            ESP_LOGI(TAG, "Waiting for UART input to connect to caster");
+            uart_nmea("$PESP,NTRIP,SRV,WAITING");
+            xSemaphoreTake(data_ready, portMAX_DELAY);
+        }
+
+        vTaskResume(sleep_task);
 
         wait_for_ip();
 
@@ -108,21 +138,12 @@ static void ntrip_server_task(void *ctx) {
 
         if (status_led != NULL) status_led->active = true;
 
-        // Keep alive
-        server_keep_alive = NTRIP_KEEP_ALIVE_THRESHOLD;
-        while (true) {
-            if (server_keep_alive >= NTRIP_KEEP_ALIVE_THRESHOLD) {
-                int sent = write(sock, NEWLINE, NEWLINE_LENGTH);
-                if (sent < 0) break;
-
-                server_keep_alive = 0;
-            }
-
-            server_keep_alive += NTRIP_KEEP_ALIVE_THRESHOLD / 10;
-            vTaskDelay(pdMS_TO_TICKS(NTRIP_KEEP_ALIVE_THRESHOLD / 10));
-        }
+        // Await disconnect from UART handler
+        vTaskSuspend(NULL);
 
         if (status_led != NULL) status_led->active = false;
+
+        vTaskSuspend(sleep_task);
 
         ESP_LOGW(TAG, "Disconnected from %s:%d/%s", host, port, mountpoint);
         uart_nmea("$PESP,NTRIP,SRV,DISCONNECTED,%s:%d,%s", host, port, mountpoint);
@@ -135,12 +156,10 @@ static void ntrip_server_task(void *ctx) {
         free(mountpoint);
         free(password);
     }
-
-    vTaskDelete(NULL);
 }
 
 void ntrip_server_init() {
     if (!config_get_bool1(CONF_ITEM(KEY_CONFIG_NTRIP_SERVER_ACTIVE))) return;
 
-    xTaskCreate(ntrip_server_task, "ntrip_server_task", 4096, NULL, TASK_PRIORITY_NTRIP, NULL);
+    xTaskCreate(ntrip_server_task, "ntrip_server_task", 4096, NULL, TASK_PRIORITY_NTRIP, &server_task);
 }
