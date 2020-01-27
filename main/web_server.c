@@ -31,10 +31,12 @@
 #include <esp_ota_ops.h>
 #include <esp_netif_sta_list.h>
 #include <stream_stats.h>
+#include <esp32/rom/crc.h>
 #include "web_server.h"
 
-/* Max length a file path can have on storage */
+// Max length a file path can have on storage
 #define FILE_PATH_MAX (ESP_VFS_PATH_MAX + CONFIG_SPIFFS_OBJ_NAME_LEN)
+#define FILE_HASH_SUFFIX ".crc"
 
 #define WWW_PARTITION_PATH "/www"
 #define BUFFER_SIZE 2048
@@ -88,7 +90,7 @@ static esp_err_t www_spiffs_init() {
     return ESP_OK;
 }
 
-/* Set HTTP response content type according to file extension */
+// Set HTTP response content type according to file extension
 static esp_err_t set_content_type_from_file(httpd_req_t *req, const char *filename)
 {
     if (IS_FILE_EXT(filename, ".html")) {
@@ -122,15 +124,15 @@ static char* get_path_from_uri(char *dest, const char *base_path, const char *ur
     }
 
     if (base_pathlen + pathlen + 1 > destsize) {
-        /* Full path string won't fit into destination buffer */
+        // Full path string won't fit into destination buffer
         return NULL;
     }
 
-    /* Construct full path (base + path) */
+    // Construct full path (base + path)
     strcpy(dest, base_path);
     strlcpy(dest + base_pathlen, uri, pathlen + 1);
 
-    /* Return pointer to path, skipping the base */
+    // Return pointer to path, skipping the base
     return dest + base_pathlen;
 }
 
@@ -284,95 +286,137 @@ static esp_err_t heap_info_get_handler(httpd_req_t *req) {
     return json_response(req, root);
 }
 
-static esp_err_t file_get_handler(httpd_req_t *req) {
-    if (check_auth(req) == ESP_FAIL) return ESP_FAIL;
-
-    char filepath[FILE_PATH_MAX];
-    FILE *fd = NULL;
-    struct stat file_stat;
-
-    char *filename = get_path_from_uri(filepath, WWW_PARTITION_PATH,
-                                             req->uri, sizeof(filepath));
-    if (!filename) {
-        ESP_LOGE(TAG, "Filename is too long");
-        /* Respond with 500 Internal Server Error */
-        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Filename too long");
-        return ESP_FAIL;
+static esp_err_t file_check_etag_hash(httpd_req_t *req, char *file_hash_path, char *etag, size_t etag_size) {
+    struct stat file_hash_stat;
+    if (stat(file_hash_path, &file_hash_stat) == -1) {
+        // Hash file not created yet
+        return ESP_ERR_NOT_FOUND;
     }
 
-    /* If name has trailing '/', respond with directory contents */
-    if (filename[strlen(filename) - 1] == '/' && strlen(filename) + strlen("index.html") < FILE_PATH_MAX) {
-        strcpy(&filename[strlen(filename)], "index.html");
+    FILE *fd_hash = fopen(file_hash_path, "r+");
 
-        httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-    }
+    // Ensure hash file was opened
+    ERROR_ACTION(TAG, fd_hash == NULL, return ESP_FAIL,
+            "Could not open hash file %s (%lu bytes) for reading/updating: %d %s", file_hash_path,
+            file_hash_stat.st_size, errno, strerror(errno));
 
-    if (stat(filepath, &file_stat) == -1) {
-        ESP_LOGE(TAG, "Failed to stat file : %s", filepath);
-        /* Respond with 404 Not Found */
-        httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "File does not exist");
-        return ESP_FAIL;
-    }
+    // Read existing hash
+    uint32_t crc;
+    int read = fread(&crc, sizeof(crc), 1, fd_hash);
+    fclose(fd_hash);
+    ERROR_ACTION(TAG, read != 1, return ESP_FAIL,
+            "Could not read hash file %s: %d %s", file_hash_path,
+            errno, strerror(errno));
 
-    unsigned long checksum = file_stat.st_size + file_stat.st_mtime;
-    char etag[19];
-    snprintf(etag, 19, "\"%016lX\"", checksum);
+    snprintf(etag, etag_size, "\"%08X\"", crc);
 
+    // Compare to header sent by client
     size_t if_none_match_length = httpd_req_get_hdr_value_len(req, "If-None-Match") + 1;
     if (if_none_match_length > 1) {
         char *if_none_match = malloc(if_none_match_length);
         httpd_req_get_hdr_value_str(req, "If-None-Match", if_none_match, if_none_match_length);
 
-        if (strcmp(etag, if_none_match) == 0) {
-            httpd_resp_set_status(req, "304 Not Modified");
-            httpd_resp_send(req, NULL, 0);
+        bool header_match = strcmp(etag, if_none_match) == 0;
+        free(if_none_match);
+
+        // Matching ETag, return not modified
+        if (header_match) {
             return ESP_OK;
+        } else {
+            ESP_LOGW(TAG, "ETag for file %s sent by client does not match (%s != %s)", file_hash_path, etag, if_none_match);
+            return ESP_ERR_INVALID_CRC;
         }
     }
 
+    return ESP_ERR_INVALID_ARG;
+}
 
-    fd = fopen(filepath, "r");
-    if (!fd) {
-        ESP_LOGE(TAG, "Failed to read existing file : %s", filepath);
-        /* Respond with 500 Internal Server Error */
-        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to read existing file");
+static esp_err_t file_get_handler(httpd_req_t *req) {
+    if (check_auth(req) == ESP_FAIL) return ESP_FAIL;
+
+    char file_path[FILE_PATH_MAX - strlen(FILE_HASH_SUFFIX)];
+    char file_hash_path[FILE_PATH_MAX];
+    FILE *fd = NULL, *fd_hash = NULL;
+    struct stat file_stat;
+
+    // Extract filename from URL
+    char *file_name = get_path_from_uri(file_path, WWW_PARTITION_PATH, req->uri, sizeof(file_path));
+    ERROR_ACTION(TAG, file_name == NULL, {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Filename too long");
         return ESP_FAIL;
+    }, "Filename too long")
+
+    // If name has trailing '/', respond with index page
+    if (file_name[strlen(file_name) - 1] == '/' && strlen(file_name) + strlen("index.html") < FILE_PATH_MAX) {
+        strcpy(&file_name[strlen(file_name)], "index.html");
+
+        httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
     }
 
-    ESP_LOGI(TAG, "Sending file : %s (%ld bytes)...", filename, file_stat.st_size);
-    set_content_type_from_file(req, filename);
-    httpd_resp_set_hdr(req, "ETag", etag);
+    set_content_type_from_file(req, file_name);
 
-    // Cache JS/CSS for 15 minutes
-    if (!IS_FILE_EXT(filename, ".html")) {
-        httpd_resp_set_hdr(req, "Cache-Control", "max-age=900");
+    // Check if file exists
+    ERROR_ACTION(TAG, stat(file_path, &file_stat) == -1, {
+        httpd_resp_send_404(req);
+        return ESP_FAIL;
+    }, "Could not stat file %s", file_path)
+
+    // Check file hash (if matches request, file is not modified)
+    strcpy(file_hash_path, file_path);
+    strcpy(&file_hash_path[strlen(file_hash_path)], FILE_HASH_SUFFIX);
+    char etag[8 + 2 + 1] = ""; // Store CRC32, quotes and \0
+    if (file_check_etag_hash(req, file_hash_path, etag, sizeof(etag)) == ESP_OK) {
+        httpd_resp_set_status(req, "304 Not Modified");
+        httpd_resp_send(req, NULL, 0);
+        return ESP_OK;
     }
 
-    /* Retrieve the pointer to scratch buffer for temporary storage */
-    //char *buffer = malloc(file_stat.st_size);
+    if (strlen(etag) > 0) httpd_resp_set_hdr(req, "ETag", etag);
+
+    fd = fopen(file_path, "r");
+    ERROR_ACTION(TAG, fd == NULL, {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not read file");
+        return ESP_FAIL;
+    }, "Could not read file %s", file_path)
+
+    ESP_LOGI(TAG, "Sending file %s (%ld bytes)...", file_name, file_stat.st_size);
+
+    // Retrieve the pointer to scratch buffer for temporary storage
     size_t chunksize;
+    uint32_t crc = 0;
     do {
-        /* Read file in chunks into the scratch buffer */
+        // Read file in chunks into the scratch buffer
         chunksize = fread(buffer, 1, BUFFER_SIZE, fd);
 
-        /* Send the buffer contents as HTTP response chunk */
+        // Send the buffer contents as HTTP response chunk
         if (httpd_resp_send_chunk(req, buffer, chunksize) != ESP_OK) {
-            fclose(fd);
             ESP_LOGE(TAG, "File sending failed!");
-            /* Abort sending file */
+            // Abort sending file
             httpd_resp_sendstr_chunk(req, NULL);
-            /* Respond with 500 Internal Server Error */
+            // Respond with 500 Internal Server Error
             httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to send file");
+
+            fclose(fd);
             return ESP_FAIL;
         }
 
-        /* Keep looping till the whole file is sent */
+        // Update checksum
+        crc = crc32_le(crc, (const uint8_t *)buffer, chunksize);
     } while (chunksize != 0);
 
-    /* Close file after sending complete */
+    // Close file after sending complete
     fclose(fd);
 
-    /* Respond with an empty chunk to signal HTTP response completion */
+    // Store CRC hash
+    fd_hash = fopen(file_hash_path, "w");
+    if (fd_hash != NULL) {
+        fwrite(&crc, sizeof(crc), 1, fd_hash);
+        fclose(fd_hash);
+    } else {
+        ESP_LOGW(TAG, "Could not open hash file %s for writing: %d %s", file_hash_path, errno, strerror(errno));
+    }
+
+    // Respond with an empty chunk to signal HTTP response completion
     httpd_resp_send_chunk(req, NULL, 0);
     return ESP_OK;
 }
