@@ -382,18 +382,17 @@ static esp_err_t file_get_handler(httpd_req_t *req) {
     ESP_LOGI(TAG, "Sending file %s (%ld bytes)...", file_name, file_stat.st_size);
 
     // Retrieve the pointer to scratch buffer for temporary storage
-    size_t chunksize;
+    size_t length;
     uint32_t crc = 0;
     do {
         // Read file in chunks into the scratch buffer
-        chunksize = fread(buffer, 1, BUFFER_SIZE, fd);
+        length = fread(buffer, 1, BUFFER_SIZE, fd);
 
         // Send the buffer contents as HTTP response chunk
-        if (httpd_resp_send_chunk(req, buffer, chunksize) != ESP_OK) {
-            ESP_LOGE(TAG, "File sending failed!");
-            // Abort sending file
+        if (httpd_resp_send_chunk(req, buffer, length) != ESP_OK) {
+            ESP_LOGE(TAG, "Failed sending file %s", file_name);
             httpd_resp_sendstr_chunk(req, NULL);
-            // Respond with 500 Internal Server Error
+
             httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to send file");
 
             fclose(fd);
@@ -401,8 +400,8 @@ static esp_err_t file_get_handler(httpd_req_t *req) {
         }
 
         // Update checksum
-        crc = crc32_le(crc, (const uint8_t *)buffer, chunksize);
-    } while (chunksize != 0);
+        crc = crc32_le(crc, (const uint8_t *)buffer, length);
+    } while (length != 0);
 
     // Close file after sending complete
     fclose(fd);
@@ -416,8 +415,6 @@ static esp_err_t file_get_handler(httpd_req_t *req) {
         ESP_LOGW(TAG, "Could not open hash file %s for writing: %d %s", file_hash_path, errno, strerror(errno));
     }
 
-    // Respond with an empty chunk to signal HTTP response completion
-    httpd_resp_send_chunk(req, NULL, 0);
     return ESP_OK;
 }
 
