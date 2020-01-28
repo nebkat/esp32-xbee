@@ -23,6 +23,8 @@
 
             var regex = /(?<level>[VDIWE]) \((?<time>[\d:.]+)\) (?<tag>[a-zA-Z_-]+): (?<comment>.*)/;
 
+            var index = 1;
+
             var update = function() {
                 $.get('log', function(data) {
                     var lines = data.split("\n");
@@ -60,7 +62,7 @@
                         }
 
                         var row = $("<tr></tr>")
-                            .append($("<td>1</td>"))
+                            .append($("<td>" + index++ + "</td>"))
                             .append($("<td>" + match.groups.time + "ms</td>"))
                             .append($("<td></td>").append(levelBadge))
                             .append($("<td>" + match.groups.tag + "</td>"))
