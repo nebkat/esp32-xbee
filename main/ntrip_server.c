@@ -67,7 +67,7 @@ static void ntrip_server_uart_handler(void* handler_args, esp_event_base_t base,
 
 static void ntrip_server_sleep_task(void *ctx) {
     while (true) {
-        // If wait time exceeded, take semaphore (if it is available)
+        // If wait time exceeded, clear data ready bit
         if (data_keep_alive == NTRIP_KEEP_ALIVE_THRESHOLD) {
             xEventGroupClearBits(server_event_group, DATA_READY_BIT);
             ESP_LOGW(TAG, "No data received by UART in %d seconds, will not reconnect to caster if disconnected", NTRIP_KEEP_ALIVE_THRESHOLD / 1000);
