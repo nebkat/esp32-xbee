@@ -10,18 +10,13 @@
             font-family: "Courier New", Courier, monospace;
             white-space: pre;
         }
-
-        #table tbody td {
-            padding-top: 3px;
-            padding-bottom: 3px;
-        }
     </style>
     <script>
         $(function() {
             var table = $("#table");
             var tbody = table.find('tbody');
 
-            var regex = /(?<level>[VDIWE]) \((?<time>[\d:.]+)\) (?<tag>[a-zA-Z_-]+): (?<comment>.*)/;
+            var regex = /(?<level>[VDIWER]) \((?<time>[\d:.]+)\) (?<tag>[a-zA-Z0-9_-]+): (?<comment>.*)/;
 
             var index = 1;
 
@@ -33,9 +28,12 @@
                     setTimeout(update, 2500);
 
                     for (var line of lines) {
+                        if (line === "@@@@") {
+                            index = 1;
+                            line = 'R (00:00:00.000) ESP32: Device Restarted';
+                        }
 
                         var match = line.match(regex);
-
                         if (match === null) {
                             console.log("Discarded: " + line);
                             continue;
@@ -44,6 +42,9 @@
                         var levelBadge = $("<span class='badge'></span>");
 
                         switch (match.groups.level) {
+                            case 'R':
+                                levelBadge.addClass('badge-info').text("RESET");
+                                break;
                             case 'V':
                                 levelBadge.addClass('badge-light').text("VERBOSE");
                                 break;
@@ -68,6 +69,10 @@
                             .append($("<td>" + match.groups.tag + "</td>"))
                             .append($("<td>" + match.groups.comment + "</td>"));
 
+                        if (match.groups.level === 'R') {
+                            row.addClass('table-info');
+                        }
+
                         tbody.append(row);
                     }
                 });
@@ -84,7 +89,7 @@
             <p class="lead">The device log will be loaded automatically below. Make sure that you have at most one log page open at a time. </p>
         </div>
         <div class="row">
-            <table id="table" class="table">
+            <table id="table" class="table table-sm">
                 <thead>
                     <tr>
                         <th scope="col">#</th>
