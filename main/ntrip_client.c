@@ -65,7 +65,7 @@ static void ntrip_client_task(void *ctx) {
 
     stream_stats = stream_stats_new("ntrip_client");
 
-    retry_delay_handle_t delay_handle = retry_init(true, 5, 2000);
+    retry_delay_handle_t delay_handle = retry_init(true, 5, 2000, 0);
 
     while (true) {
         retry_delay(delay_handle);

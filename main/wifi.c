@@ -254,7 +254,7 @@ void wifi_init() {
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
 
     // Reconnect delay timer
-    delay_handle = retry_init(true, 5, 2000);
+    delay_handle = retry_init(true, 5, 2000, 60000);
 
     // SoftAP
     bool ap_enable = config_get_bool1(CONF_ITEM(KEY_CONFIG_WIFI_AP_ACTIVE));
