@@ -427,7 +427,7 @@ esp_err_t config_init() {
     }
     ESP_ERROR_CHECK(err);
 
-    ESP_LOGI(TAG, "Opening Non-Volatile Storage (NVS) handle '%s'... ", STORAGE);
+    ESP_LOGD(TAG, "Opening Non-Volatile Storage (NVS) handle '%s'... ", STORAGE);
     return nvs_open(STORAGE, NVS_READWRITE, &config_handle);
 }
 
