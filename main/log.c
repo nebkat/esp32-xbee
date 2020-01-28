@@ -19,6 +19,7 @@
 #include <esp_err.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/ringbuf.h>
+#include <string.h>
 #include <uart.h>
 #include "log.h"
 
@@ -44,7 +45,9 @@ int log_vprintf(const char * format, va_list arg) {
         n = 512;
     }
 
-    xRingbufferSend(ringbuf_handle, buffer, n, 0);
+    xRingbufferSend(ringbuf_handle, buffer + strlen(LOG_COLOR_E),
+            n - strlen(LOG_COLOR_E) - strlen(LOG_RESET_COLOR) - 1, 0);
+    xRingbufferSend(ringbuf_handle, "\n", 1, 0);
 
     uart_log(buffer, n);
 
