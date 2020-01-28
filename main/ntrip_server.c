@@ -24,6 +24,7 @@
 #include <status_led.h>
 #include <retry.h>
 #include <stream_stats.h>
+#include <freertos/event_groups.h>
 #include "ntrip.h"
 #include "config.h"
 #include "util.h"
@@ -33,9 +34,13 @@ static const char *TAG = "NTRIP_SERVER";
 
 #define BUFFER_SIZE 512
 
+static const int CASTER_READY_BIT = BIT0;
+static const int DATA_READY_BIT = BIT1;
+
 static int sock = -1;
+
 static int data_keep_alive;
-static SemaphoreHandle_t data_ready;
+static EventGroupHandle_t server_event_group;
 
 static status_led_handle_t status_led = NULL;
 static stream_stats_handle_t stream_stats = NULL;
@@ -44,10 +49,11 @@ static TaskHandle_t server_task = NULL;
 static TaskHandle_t sleep_task = NULL;
 
 static void ntrip_server_uart_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) {
-    xSemaphoreGive(data_ready);
+    xEventGroupSetBits(server_event_group, DATA_READY_BIT);
     data_keep_alive = 0;
 
-    if (sock == -1) return;
+    // Caster connected and ready for data
+    if ((xEventGroupGetBits(server_event_group) & CASTER_READY_BIT) == 0) return;
 
     uart_data_t *data = event_data;
     int sent = write(sock, data->buffer, data->len);
@@ -63,7 +69,7 @@ static void ntrip_server_sleep_task(void *ctx) {
     while (true) {
         // If wait time exceeded, take semaphore (if it is available)
         if (data_keep_alive == NTRIP_KEEP_ALIVE_THRESHOLD) {
-            xSemaphoreTake(data_ready, 0);
+            xEventGroupClearBits(server_event_group, DATA_READY_BIT);
             ESP_LOGW(TAG, "No data received by UART in %d seconds, will not reconnect to caster if disconnected", NTRIP_KEEP_ALIVE_THRESHOLD / 1000);
         }
         data_keep_alive += NTRIP_KEEP_ALIVE_THRESHOLD / 10;
@@ -72,7 +78,7 @@ static void ntrip_server_sleep_task(void *ctx) {
 }
 
 static void ntrip_server_task(void *ctx) {
-    data_ready = xSemaphoreCreateBinary();
+    server_event_group = xEventGroupCreate();
     uart_register_handler(ntrip_server_uart_handler);
     xTaskCreate(ntrip_server_sleep_task, "ntrip_server_sleep_task", 2048, NULL, TASK_PRIORITY_NTRIP, &sleep_task);
     vTaskSuspend(sleep_task);
@@ -89,10 +95,10 @@ static void ntrip_server_task(void *ctx) {
         retry_delay(delay_handle);
 
         // Wait for data to be available
-        if (uxSemaphoreGetCount(data_ready) == 0) {
+        if ((xEventGroupGetBits(server_event_group) & DATA_READY_BIT) == 0) {
             ESP_LOGI(TAG, "Waiting for UART input to connect to caster");
             uart_nmea("$PESP,NTRIP,SRV,WAITING");
-            xSemaphoreTake(data_ready, portMAX_DELAY);
+            xEventGroupWaitBits(server_event_group, DATA_READY_BIT, true, false, portMAX_DELAY);
         }
 
         vTaskResume(sleep_task);
@@ -138,8 +144,14 @@ static void ntrip_server_task(void *ctx) {
 
         if (status_led != NULL) status_led->active = true;
 
+        // Connected
+        xEventGroupSetBits(server_event_group, CASTER_READY_BIT);
+
         // Await disconnect from UART handler
         vTaskSuspend(NULL);
+
+        // Disconnected
+        xEventGroupSetBits(server_event_group, CASTER_READY_BIT);
 
         if (status_led != NULL) status_led->active = false;
 

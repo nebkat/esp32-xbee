@@ -24,6 +24,7 @@
 #include <status_led.h>
 #include <retry.h>
 #include <stream_stats.h>
+#include <freertos/event_groups.h>
 #include "ntrip.h"
 #include "config.h"
 #include "util.h"
@@ -33,13 +34,18 @@ static const char *TAG = "NTRIP_CLIENT";
 
 #define BUFFER_SIZE 512
 
+static const int CASTER_READY_BIT = BIT0;
+
 static int sock = -1;
+
+static EventGroupHandle_t client_event_group;
 
 static status_led_handle_t status_led = NULL;
 static stream_stats_handle_t stream_stats = NULL;
 
 static void ntrip_client_uart_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) {
-    if (sock == -1) return;
+    // Caster connected and ready for data
+    if ((xEventGroupGetBits(client_event_group) & CASTER_READY_BIT) == 0) return;
 
     uart_data_t *data = event_data;
     int sent = send(sock, data->buffer, data->len, 0);
@@ -109,11 +115,18 @@ static void ntrip_client_task(void *ctx) {
 
         if (status_led != NULL) status_led->active = true;
 
-        while ((len = read(sock, buffer, BUFFER_SIZE)) >= 0) {
+        // Connected
+        xEventGroupSetBits(client_event_group, CASTER_READY_BIT);
+
+        // Read from socket until disconnected
+        while (sock != -1 && (len = read(sock, buffer, BUFFER_SIZE)) >= 0) {
             uart_write(buffer, len);
 
             stream_stats_increment(stream_stats, len, 0);
         }
+
+        // Disconnected
+        xEventGroupSetBits(client_event_group, CASTER_READY_BIT);
 
         if (status_led != NULL) status_led->active = false;
 
