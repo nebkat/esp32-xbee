@@ -58,7 +58,7 @@ static enum auth_method auth_method;
     (strcasecmp(&filename[strlen(filename) - sizeof(ext) + 1], ext) == 0)
 
 static esp_err_t www_spiffs_init() {
-    ESP_LOGI(TAG, "Initializing SPIFFS");
+    ESP_LOGD(TAG, "Initializing SPIFFS");
 
     esp_vfs_spiffs_conf_t conf = {
             .base_path = WWW_PARTITION_PATH,
@@ -86,7 +86,7 @@ static esp_err_t www_spiffs_init() {
         return ESP_FAIL;
     }
 
-    ESP_LOGI(TAG, "Partition size: total: %d, used: %d", total, used);
+    ESP_LOGD(TAG, "Partition size: total: %d, used: %d", total, used);
     return ESP_OK;
 }
 
@@ -732,9 +732,6 @@ static httpd_handle_t web_server_start(void)
     // Start the httpd server
     ESP_LOGI(TAG, "Starting server on port: '%d'", config.server_port);
     if (httpd_start(&server, &config) == ESP_OK) {
-        // Set URI handlers
-        ESP_LOGI(TAG, "Registering URI handlers");
-
         register_uri_handler(server, "/config", HTTP_GET, config_get_handler, NULL);
         register_uri_handler(server, "/config", HTTP_POST, config_post_handler, NULL);
         register_uri_handler(server, "/status", HTTP_GET, status_get_handler, NULL);
