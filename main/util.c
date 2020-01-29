@@ -112,6 +112,8 @@ int connect_socket(char *host, int port, int socktype) {
         if (connect(sock, addr_result->ai_addr, addr_result->ai_addrlen) == 0) break;
 
         close(sock);
+
+        sock = -1;
     }
 
     freeaddrinfo(addr_results);
