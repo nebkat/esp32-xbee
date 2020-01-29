@@ -271,10 +271,12 @@
             };
 
             var statusUpdate = function() {
-                $.getJSON('status').done(function(data) {
-                    if (reloadOnStatus) {
-                        window.location.reload();
-                    }
+                $.ajax({
+                    url: 'status',
+                    dataType: 'json',
+                    timeout: 2000
+                }).done(function(data) {
+                    if (reloadOnStatus) window.location.reload();
 
                     // Uptime
                     deviceUptimeText.text(secondsToHHMMSS(parseInt(data.uptime)));

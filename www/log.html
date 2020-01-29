@@ -21,11 +21,12 @@
             var index = 1;
 
             var update = function() {
-                $.get('log', function(data) {
+                $.ajax({
+                    url: 'log',
+                    timeout: 2000
+                }).done(function(data) {
                     var lines = data.split("\n");
                     window.lines = lines;
-
-                    setTimeout(update, 2500);
 
                     for (var line of lines) {
                         if (line === "@@@@") {
@@ -75,6 +76,8 @@
 
                         tbody.append(row);
                     }
+                }).always(function() {
+                    setTimeout(update, 2500);
                 });
             };
 
