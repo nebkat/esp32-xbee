@@ -164,7 +164,7 @@
                 projectVersionText.text(data.version);
 
                 if (data.version.includes('-')) data.version = data.version.substring(0, data.version.indexOf('-'));
-                let current_version = parseInt(data.version.replace(/[^\d]/g, ""));
+                let current_version = parseFloat("0." + data.version.replace(/[^\d]/g, ""));
                 $.getJSON(releases_api_url, function(data) {
                     if (typeof data === 'undefined') return;
 
@@ -172,7 +172,7 @@
                     let release_url = null;
                     for (const release of data) {
                         if (release.prerelease) continue;
-                        latest_version = parseInt(release.tag_name.replace(/[^\d]/g, ""));
+                        latest_version = parseFloat("0." + release.tag_name.replace(/[^\d]/g, ""));
                         release_url = release.html_url;
                         break;
                     }
