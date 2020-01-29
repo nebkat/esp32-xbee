@@ -118,6 +118,13 @@ int connect_socket(char *host, int port, int socktype) {
 
     freeaddrinfo(addr_results);
 
+    // Read/write timeouts
+    struct timeval timeout;
+    timeout.tv_sec = 10;
+    timeout.tv_usec = 0;
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout));
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout));
+
     return sock < 0 ? CONNECT_SOCKET_ERROR_CONNECT : sock;
 }
 
