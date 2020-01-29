@@ -12,7 +12,13 @@
         }
     </style>
     <script>
+        const LOG_PAGE_INDEX_KEY = 'log_page_index';
+
         $(function() {
+            var log_page_index = localStorage.getItem(LOG_PAGE_INDEX_KEY) || 0;
+            log_page_index++;
+            localStorage.setItem(LOG_PAGE_INDEX_KEY, log_page_index);
+
             var table = $("#table");
             var tbody = table.find('tbody');
 
@@ -21,6 +27,13 @@
             var index = 1;
 
             var update = function() {
+                // Don't reload if another page is open
+                if (localStorage.getItem(LOG_PAGE_INDEX_KEY) > log_page_index) {
+                    console.log("Disabling due to other page");
+                    $('#reload-modal').modal({backdrop: 'static', keyboard: false});
+                    return;
+                }
+
                 $.ajax({
                     url: 'log',
                     timeout: 2000
@@ -32,6 +45,8 @@
                         if (line === "@@@@") {
                             index = 1;
                             line = 'R (00:00:00.000) ESP32: Device Restarted';
+                        } else if (line.length === 0) {
+                            continue;
                         }
 
                         var match = line.match(regex);
@@ -106,6 +121,18 @@
 
                 </tbody>
             </table>
+        </div>
+    </div>
+    <div class="modal fade" id="reload-modal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-body">
+                    <p>Another log page has been opened in a different window/tab. To avoid both pages competing for the log from the device, please switch to the most recently opened log tab, or reload this page.</p>
+                </div>
+                <div class="modal-footer">
+                    <a href="javascript:location.reload()" class="btn btn-success">Reload</a>
+                </div>
+            </div>
         </div>
     </div>
 </body>
