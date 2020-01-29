@@ -155,12 +155,12 @@ static void ntrip_server_task(void *ctx) {
 
         if (status_led != NULL) status_led->active = false;
 
-        vTaskSuspend(sleep_task);
-
         ESP_LOGW(TAG, "Disconnected from %s:%d/%s", host, port, mountpoint);
         uart_nmea("$PESP,NTRIP,SRV,DISCONNECTED,%s:%d,%s", host, port, mountpoint);
 
         _error:
+        vTaskSuspend(sleep_task);
+
         destroy_socket(&sock);
 
         free(buffer);
