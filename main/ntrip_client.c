@@ -57,6 +57,7 @@ static void ntrip_client_uart_handler(void* handler_args, esp_event_base_t base,
 }
 
 static void ntrip_client_task(void *ctx) {
+    client_event_group = xEventGroupCreate();
     uart_register_handler(ntrip_client_uart_handler);
 
     config_color_t status_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_NTRIP_CLIENT_COLOR));
