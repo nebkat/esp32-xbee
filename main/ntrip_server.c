@@ -36,6 +36,7 @@ static const char *TAG = "NTRIP_SERVER";
 
 static const int CASTER_READY_BIT = BIT0;
 static const int DATA_READY_BIT = BIT1;
+static const int DATA_SENT_BIT = BIT2;
 
 static int sock = -1;
 
@@ -49,11 +50,22 @@ static TaskHandle_t server_task = NULL;
 static TaskHandle_t sleep_task = NULL;
 
 static void ntrip_server_uart_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) {
-    xEventGroupSetBits(server_event_group, DATA_READY_BIT);
+    EventBits_t event_bits = xEventGroupGetBits(server_event_group);
+
+    // Reset data availability bit
+    if ((event_bits & DATA_READY_BIT) == 0) {
+        xEventGroupSetBits(server_event_group, DATA_READY_BIT);
+
+        if (event_bits & DATA_SENT_BIT)
+            ESP_LOGI(TAG, "Data received by UART, will now reconnect to caster if disconnected");
+    }
     data_keep_alive = 0;
 
-    // Caster connected and ready for data
-    if ((xEventGroupGetBits(server_event_group) & CASTER_READY_BIT) == 0) return;
+    // Ignore if caster is not connected and ready for data
+    if ((event_bits & CASTER_READY_BIT) == 0) return;
+
+    // Caster is connected and some data will be sent
+    if ((event_bits & DATA_SENT_BIT) == 0) xEventGroupSetBits(server_event_group, DATA_SENT_BIT);
 
     uart_data_t *data = event_data;
     int sent = write(sock, data->buffer, data->len);
@@ -153,6 +165,7 @@ static void ntrip_server_task(void *ctx) {
 
         // Disconnected
         xEventGroupSetBits(server_event_group, CASTER_READY_BIT);
+        xEventGroupClearBits(server_event_group, DATA_SENT_BIT);
 
         if (status_led != NULL) status_led->active = false;
 
