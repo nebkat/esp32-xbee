@@ -242,17 +242,19 @@ static esp_err_t core_dump_get_handler(httpd_req_t *req) {
 
     const esp_app_desc_t *app_desc = esp_ota_get_app_description();
 
-    char elf_sha256[9];
+    char elf_sha256[7];
     esp_ota_get_app_elf_sha256(elf_sha256, sizeof(elf_sha256));
 
     time_t t = time(NULL);
-    char date[20];
-    strftime(date, sizeof(date), "%F_%T", localtime(&t));
-    char *content_disposition;
-    asprintf(&content_disposition, "attachment; filename=\"esp32_xbee_%s_core_dump_%s_%s.bin\"", app_desc->version, date, elf_sha256);
+    char date[20] = "\0";
+    if (t > 315360000l) strftime(date, sizeof(date), "_%F_%T", localtime(&t));
+
+    char content_disposition[128];
+    snprintf(content_disposition, sizeof(content_disposition),
+            "attachment; filename=\"esp32_xbee_%s_core_dump_%s%s.bin\"", app_desc->version, elf_sha256, date);
     httpd_resp_set_hdr(req, "Content-Disposition", content_disposition);
 
-    for (size_t offset = 0; offset < core_dump_size; offset += BUFFER_SIZE) {
+    for (int offset = 0; offset < core_dump_size; offset += BUFFER_SIZE) {
         size_t read = core_dump_size - offset;
         if (read > BUFFER_SIZE) read = BUFFER_SIZE;
 
@@ -261,8 +263,6 @@ static esp_err_t core_dump_get_handler(httpd_req_t *req) {
     }
 
     httpd_resp_send_chunk(req, NULL, 0);
-
-    free(content_disposition);
 
     return ESP_OK;
 }
