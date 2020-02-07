@@ -33,28 +33,45 @@ void destroy_socket(int *socket) {
 }
 
 // Include space for port
-static char addr_str[INET6_ADDRSTRLEN + 6 + 1];
+static char addr_str[INET6_ADDRSTRLEN + 2 + 6 + 1];
 
 char *sockaddrtostr(struct sockaddr *a) {
+    struct sockaddr_in *a4 = (struct sockaddr_in *) a;
+    struct sockaddr_in6 *a6 = (struct sockaddr_in6 *) a;
+
+    sa_family_t family = a->sa_family;
     int port = 0;
+    ip4_addr_t *addr4 = NULL;
+    ip6_addr_t *addr6 = NULL;
+    if (family == PF_INET) {
+        addr4 = (ip4_addr_t *) &a4->sin_addr.s_addr;
+        port = a4->sin_port;
+    } else if (family == PF_INET6) {
+        addr6 = (ip6_addr_t *) &a6->sin6_addr;
+
+        if (ip6_addr_isipv4mappedipv6(addr6)) {
+            family = PF_INET;
+            addr4 = (ip4_addr_t *) &addr6->addr[3];
+        }
+
+        port = a6->sin6_port;
+    }
 
     // Get address string
-    if (a->sa_family == PF_INET) {
-        struct sockaddr_in *a4 = (struct sockaddr_in *) a;
-
-        inet_ntop(AF_INET, &a4->sin_addr, addr_str, INET_ADDRSTRLEN);
-        port = a4->sin_port;
-    } else if (a->sa_family == PF_INET6) {
-        struct sockaddr_in6 *a6 = (struct sockaddr_in6 *) a;
-
-        inet_ntop(AF_INET6, &a6->sin6_addr, addr_str, INET6_ADDRSTRLEN);
-        port = a6->sin6_port;
+    if (family == PF_INET) {
+        inet_ntop(AF_INET, addr4, addr_str, INET_ADDRSTRLEN);
+    } else if (family == PF_INET6) {
+        addr_str[0] = '[';
+        inet_ntop(AF_INET6, addr6, addr_str + 1, INET6_ADDRSTRLEN);
+        int ip_len = strlen(addr_str);
+        addr_str[ip_len] = ']';
+        addr_str[ip_len + 1] = '\0';
     } else {
         return "UNKNOWN";
     }
 
     // Append port number
-    sprintf(addr_str + strlen(addr_str), ":%d", port);
+    sprintf(addr_str + strlen(addr_str), ":%d", ntohs(port));
 
     return addr_str;
 }
