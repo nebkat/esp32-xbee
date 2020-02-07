@@ -703,12 +703,11 @@ static esp_err_t wifi_scan_get_handler(httpd_req_t *req) {
     return json_response(req, root);
 }
 
-static esp_err_t register_uri_handler(httpd_handle_t server, const char *path, httpd_method_t method, esp_err_t (*handler)(httpd_req_t *r), void *user_ctx) {
+static esp_err_t register_uri_handler(httpd_handle_t server, const char *path, httpd_method_t method, esp_err_t (*handler)(httpd_req_t *r)) {
     httpd_uri_t uri_config_get = {
             .uri        = path,
             .method     = method,
-            .handler    = handler,
-            .user_ctx   = user_ctx
+            .handler    = handler
     };
     return httpd_register_uri_handler(server, &uri_config_get);
 }
@@ -732,17 +731,17 @@ static httpd_handle_t web_server_start(void)
     // Start the httpd server
     ESP_LOGI(TAG, "Starting server on port: '%d'", config.server_port);
     if (httpd_start(&server, &config) == ESP_OK) {
-        register_uri_handler(server, "/config", HTTP_GET, config_get_handler, NULL);
-        register_uri_handler(server, "/config", HTTP_POST, config_post_handler, NULL);
-        register_uri_handler(server, "/status", HTTP_GET, status_get_handler, NULL);
+        register_uri_handler(server, "/config", HTTP_GET, config_get_handler);
+        register_uri_handler(server, "/config", HTTP_POST, config_post_handler);
+        register_uri_handler(server, "/status", HTTP_GET, status_get_handler);
 
-        register_uri_handler(server, "/log", HTTP_GET, log_get_handler, NULL);
-        register_uri_handler(server, "/core_dump", HTTP_GET, core_dump_get_handler, NULL);
-        register_uri_handler(server, "/heap_info", HTTP_GET, heap_info_get_handler, NULL);
+        register_uri_handler(server, "/log", HTTP_GET, log_get_handler);
+        register_uri_handler(server, "/core_dump", HTTP_GET, core_dump_get_handler);
+        register_uri_handler(server, "/heap_info", HTTP_GET, heap_info_get_handler);
 
-        register_uri_handler(server, "/wifi/scan", HTTP_GET, wifi_scan_get_handler, NULL);
+        register_uri_handler(server, "/wifi/scan", HTTP_GET, wifi_scan_get_handler);
 
-        register_uri_handler(server, "/*", HTTP_GET, file_get_handler, NULL);
+        register_uri_handler(server, "/*", HTTP_GET, file_get_handler);
     }
 
     if (server == NULL) {
