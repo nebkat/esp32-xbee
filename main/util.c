@@ -80,7 +80,7 @@ char *extract_http_header(const char *buffer, const char *key) {
     // Need space for key, at least 1 character, and newline
     if (strlen(key) + 2 > strlen(buffer)) return NULL;
 
-    // Cheap search ignores potential problems where searched key is at the end of another longer key
+    // Cheap search ignores potential problems where searched key is suffix of another longer key
     char *start = strcasestr(buffer, key);
     if (!start) return NULL;
     start += strlen(key);
@@ -95,10 +95,11 @@ char *extract_http_header(const char *buffer, const char *key) {
     int len = (int) (end - start);
     if (len == 0) return NULL;
 
-    char *header_value = malloc(len);
+    char *header_value = malloc(len + 1);
     if (header_value == NULL) return NULL;
 
     memcpy(header_value, start, len);
+    header_value[len] = '\0';
     return header_value;
 }
 
