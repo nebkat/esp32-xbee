@@ -86,6 +86,7 @@ char *extract_http_header(const char *buffer, const char *key) {
 }
 
 int connect_socket(char *host, int port, int socktype) {
+    int err;
     struct addrinfo addr_hints;
     struct addrinfo *addr_results;
 
@@ -98,9 +99,8 @@ int connect_socket(char *host, int port, int socktype) {
 
     char port_string[6];
     sprintf(port_string, "%u", port);
-    if (getaddrinfo(host, port_string, &addr_hints, &addr_results) < 0) {
-        return CONNECT_SOCKET_ERROR_RESOLVE;
-    }
+    err = getaddrinfo(host, port_string, &addr_hints, &addr_results);
+    if (err < 0) return CONNECT_SOCKET_ERROR_RESOLVE;
 
     int sock = -1;
 
@@ -118,14 +118,27 @@ int connect_socket(char *host, int port, int socktype) {
 
     freeaddrinfo(addr_results);
 
+    if (sock < 0) return CONNECT_SOCKET_ERROR_CONNECT;
+
     // Read/write timeouts
     struct timeval timeout;
     timeout.tv_sec = 10;
     timeout.tv_usec = 0;
-    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout));
-    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout));
+    err = setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout));
+    if (err != 0) goto _opts_error;
+    err = setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout));
+    if (err != 0) goto _opts_error;
 
-    return sock < 0 ? CONNECT_SOCKET_ERROR_CONNECT : sock;
+    // Reuse address
+    int reuse = 1;
+    err = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+    if (err != 0) goto _opts_error;
+
+    return sock;
+
+    _opts_error:
+    close(sock);
+    return CONNECT_SOCKET_ERROR_OPTS;
 }
 
 char *http_auth_basic_header(const char *username, const char *password) {
