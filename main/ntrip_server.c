@@ -79,7 +79,7 @@ static void ntrip_server_sleep_task(void *ctx) {
 
 static void ntrip_server_task(void *ctx) {
     server_event_group = xEventGroupCreate();
-    uart_register_handler(ntrip_server_uart_handler);
+    uart_register_read_handler(ntrip_server_uart_handler);
     xTaskCreate(ntrip_server_sleep_task, "ntrip_server_sleep_task", 2048, NULL, TASK_PRIORITY_NTRIP, &sleep_task);
     vTaskSuspend(sleep_task);
 

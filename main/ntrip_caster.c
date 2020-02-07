@@ -103,7 +103,7 @@ static int ntrip_caster_socket_init() {
 }
 
 static void ntrip_caster_task(void *ctx) {
-    uart_register_handler(ntrip_caster_uart_handler);
+    uart_register_read_handler(ntrip_caster_uart_handler);
 
     config_color_t status_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_NTRIP_CASTER_COLOR));
     if (status_led_color.rgba != 0) status_led = status_led_add(status_led_color.rgba, STATUS_LED_STATIC, 500, 2000, 0);

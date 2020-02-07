@@ -243,7 +243,7 @@ static void socket_clients_receive(fd_set *socket_set) {
 }
 
 static void socket_server_task(void *ctx) {
-    uart_register_handler(socket_server_uart_handler);
+    uart_register_read_handler(socket_server_uart_handler);
 
     config_color_t status_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_SOCKET_SERVER_COLOR));
     if (status_led_color.rgba != 0) status_led = status_led_add(status_led_color.rgba, STATUS_LED_STATIC, 500, 2000, 0);
