@@ -24,5 +24,9 @@ static bool str_starts_with(const char *a, const char *b) {
 
 bool ntrip_response_ok(void *response) {
     return str_starts_with(response, "OK") || str_starts_with(response, "ICY 200 OK") ||
-           str_starts_with(response, "HTTP/1.1 200 OK") || str_starts_with(response, "SOURCETABLE 200 OK");
+           str_starts_with(response, "HTTP/1.1 200 OK");
+}
+
+bool ntrip_response_sourcetable_ok(void *response) {
+    return str_starts_with(response, "HTTP/1.1 200 OK") || str_starts_with(response, "SOURCETABLE 200 OK");
 }

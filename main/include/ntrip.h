@@ -18,5 +18,6 @@ void ntrip_client_init();
 void ntrip_caster_init();
 
 bool ntrip_response_ok(void *response);
+bool ntrip_response_sourcetable_ok(void *response);
 
 #endif //ESP32_XBEE_NTRIP_H
