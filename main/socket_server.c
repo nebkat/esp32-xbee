@@ -14,36 +14,24 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
+#include <esp_log.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <lwip/err.h>
+#include <lwip/sockets.h>
 #include <string.h>
 #include <sys/param.h>
-#include "math.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "esp_log.h"
 
-#include "lwip/err.h"
-#include "lwip/sockets.h"
-#include <wifi.h>
-#include <status_led.h>
-#include <stream_stats.h>
-
-#include "socket_server.h"
 #include "config.h"
+#include "socket_server.h"
+#include "status_led.h"
+#include "stream_stats.h"
 #include "uart.h"
 #include "util.h"
 
 static const char *TAG = "SOCKET_SERVER";
 
 #define BUFFER_SIZE 1024
-
-#ifndef CONFIG_EXAMPLE_IPV6
-#define SOCKET_ADDR_FAMILY AF_INET
-#define SOCKET_IP_PROTOCOL IPPROTO_IP
-#elif
-#define SOCKET_ADDR_FAMILY AF_INET6
-#define SOCKET_IP_PROTOCOL IPPROTO_IP6
-#endif
 
 static int sock_tcp, sock_udp;
 static char *buffer;
@@ -58,7 +46,7 @@ typedef struct socket_client_t {
     SLIST_ENTRY(socket_client_t) next;
 } socket_client_t;
 
-SLIST_HEAD(socket_client_list_t, socket_client_t) socket_client_list;
+static SLIST_HEAD(socket_client_list_t, socket_client_t) socket_client_list;
 
 static bool socket_address_equal(struct sockaddr_in6 *a, struct sockaddr_in6 *b) {
     if (a->sin6_family != b->sin6_family) return false;
@@ -77,9 +65,11 @@ static bool socket_address_equal(struct sockaddr_in6 *a, struct sockaddr_in6 *b)
 
 static socket_client_t * socket_client_add(int sock, struct sockaddr_in6 addr, int socktype) {
     socket_client_t *client = malloc(sizeof(socket_client_t));
-    client->socket = sock;
-    client->addr = addr;
-    client->type = socktype;
+    *client = (socket_client_t) {
+            .socket = sock,
+            .addr = addr,
+            .type = socktype
+    };
 
     SLIST_INSERT_HEAD(&socket_client_list, client, next);
 
@@ -112,6 +102,7 @@ static void socket_server_uart_handler(void* handler_args, esp_event_base_t base
     SLIST_FOREACH_SAFE(client, &socket_client_list, next, client_tmp) {
         int sent = write(client->socket, data->buffer, data->len);
         if (sent < 0) {
+            ESP_LOGE(TAG, "Could not write to %s socket: %d %s", SOCKTYPE_NAME(client->type), errno, strerror(errno));
             socket_client_remove(client);
         } else {
             stream_stats_increment(stream_stats, 0, sent);
@@ -119,61 +110,56 @@ static void socket_server_uart_handler(void* handler_args, esp_event_base_t base
     }
 }
 
-static int socket_init(int socktype, int port, int *sock) {
-    #ifndef CONFIG_EXAMPLE_IPV6
-        struct sockaddr_in dest_addr;
-        dest_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-        dest_addr.sin_family = AF_INET;
-        dest_addr.sin_port = htons(port);
-    #else // IPV6
-        struct sockaddr_in6 dest_addr;
-        bzero(&dest_addr.sin6_addr.un, sizeof(dest_addr.sin6_addr.un));
-        dest_addr.sin6_family = AF_INET6;
-        dest_addr.sin6_port = htons(port);
-    #endif
-
-    *sock = socket(SOCKET_ADDR_FAMILY, socktype, SOCKET_IP_PROTOCOL);
-    ERROR_ACTION(TAG, *sock < 0, return *sock, "Could not create %s socket: %d %s", SOCKTYPE_NAME(socktype), errno, strerror(errno));
+static int socket_init(int socktype, int port) {
+    int sock = socket(PF_INET6, socktype, 0);
+    ERROR_ACTION(TAG, sock < 0, return -1, "Could not create %s socket: %d %s", SOCKTYPE_NAME(socktype), errno, strerror(errno))
 
     int reuse = 1;
-    int err = setsockopt(*sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
-    ERROR_ACTION(TAG, err != 0, destroy_socket(sock); return err, "Could not set %s socket options: %d %s", SOCKTYPE_NAME(socktype), errno, strerror(errno));
+    int err = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+    ERROR_ACTION(TAG, err != 0, close(sock); return -1, "Could not set %s socket options: %d %s", SOCKTYPE_NAME(socktype), errno, strerror(errno))
 
-    err = bind(*sock, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
-    ERROR_ACTION(TAG, err != 0, destroy_socket(sock); return err, "Could not bind %s socket: %d %s", SOCKTYPE_NAME(socktype), errno, strerror(errno));
+    struct sockaddr_in6 srv_addr = {
+            .sin6_family = PF_INET6,
+            .sin6_addr = IN6ADDR_ANY_INIT,
+            .sin6_port = htons(port)
+    };
+
+    err = bind(sock, (struct sockaddr *)&srv_addr, sizeof(srv_addr));
+    ERROR_ACTION(TAG, err != 0, close(sock); return -1, "Could not bind %s socket: %d %s", SOCKTYPE_NAME(socktype), errno, strerror(errno))
 
     ESP_LOGI(TAG, "%s socket listening on port %d", SOCKTYPE_NAME(socktype), port);
     uart_nmea("$PESP,SOCK,SRV,%s,BIND,%d", SOCKTYPE_NAME(socktype), port);
 
-    return 0;
+    return sock;
 }
 
-static int socket_tcp_init() {
+static esp_err_t socket_tcp_init() {
     int port = config_get_u16(CONF_ITEM(KEY_CONFIG_SOCKET_SERVER_TCP_PORT));
 
-    int err = socket_init(SOCK_STREAM, port, &sock_tcp);
-    if (err < 0) return err;
+    sock_tcp = socket_init(SOCK_STREAM, port);
+    if (sock_tcp < 0) return ESP_FAIL;
 
-    err = listen(sock_tcp, 1);
-    ERROR_ACTION(TAG, err != 0, destroy_socket(&sock_tcp); return err, "Could not listen to TCP socket: %d %s", errno, strerror(errno));
+    int err = listen(sock_tcp, 1);
+    ERROR_ACTION(TAG, err != 0, destroy_socket(&sock_tcp); return ESP_FAIL, "Could not listen on TCP socket: %d %s", errno, strerror(errno))
 
-    return 0;
+    return ESP_OK;
 }
 
 static esp_err_t socket_tcp_accept() {
     struct sockaddr_in6 source_addr;
     uint addr_len = sizeof(source_addr);
     int sock = accept(sock_tcp, (struct sockaddr *)&source_addr, &addr_len);
-    ERROR_ACTION(TAG, sock < 0, return ESP_FAIL, "Could not accept new TCP connection: %d %s", errno, strerror(errno));
+    ERROR_ACTION(TAG, sock < 0, return ESP_FAIL, "Could not accept new TCP connection: %d %s", errno, strerror(errno))
 
     socket_client_add(sock, source_addr, SOCK_STREAM);
     return ESP_OK;
 }
 
-static int socket_udp_init() {
+static esp_err_t socket_udp_init() {
     int port = config_get_u16(CONF_ITEM(KEY_CONFIG_SOCKET_SERVER_UDP_PORT));
 
-    return socket_init(SOCK_DGRAM, port, &sock_udp);
+    sock_udp = socket_init(SOCK_DGRAM, port);
+    return sock_udp < 0 ? ESP_FAIL : ESP_OK;
 }
 
 static bool socket_udp_has_client(struct sockaddr_in6 *source_addr) {
@@ -192,21 +178,21 @@ static bool socket_udp_has_client(struct sockaddr_in6 *source_addr) {
 static esp_err_t socket_udp_client_accept(struct sockaddr_in6 source_addr) {
     if (socket_udp_has_client(&source_addr)) return ESP_OK;
 
-    int sock = socket(SOCKET_ADDR_FAMILY, SOCK_DGRAM, SOCKET_IP_PROTOCOL);
-    ERROR_ACTION(TAG, sock < 0, return sock, "Could not create client UDP socket: %d %s", errno, strerror(errno));
+    int sock = socket(PF_INET6, SOCK_DGRAM, 0);
+    ERROR_ACTION(TAG, sock < 0, return sock, "Could not create client UDP socket: %d %s", errno, strerror(errno))
 
     int reuse = 1;
     int err = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
-    ERROR_ACTION(TAG, sock < 0, destroy_socket(&sock); return err, "Could not set client UDP socket options: %d %s", errno, strerror(errno));
+    ERROR_ACTION(TAG, err != 0, destroy_socket(&sock); return err, "Could not set client UDP socket options: %d %s", errno, strerror(errno))
 
     struct sockaddr_in6 server_addr;
     socklen_t socklen = sizeof(server_addr);
     getsockname(sock_udp, (struct sockaddr *)&server_addr, &socklen);
     err = bind(sock, (struct sockaddr *)&server_addr, sizeof(server_addr));
-    ERROR_ACTION(TAG, err != 0, destroy_socket(&sock); return err, "Could not bind client UDP socket: %d %s", errno, strerror(errno));
+    ERROR_ACTION(TAG, err != 0, destroy_socket(&sock); return err, "Could not bind client UDP socket: %d %s", errno, strerror(errno))
 
     err = connect(sock, (struct sockaddr *)&source_addr, sizeof(source_addr));
-    ERROR_ACTION(TAG, err != 0, destroy_socket(&sock); return err, "Could not connect client UDP socket: %d %s", errno, strerror(errno));
+    ERROR_ACTION(TAG, err != 0, destroy_socket(&sock); return err, "Could not connect client UDP socket: %d %s", errno, strerror(errno))
 
     socket_client_add(sock, source_addr, SOCK_DGRAM);
     return ESP_OK;
@@ -314,7 +300,6 @@ static void socket_server_task(void *ctx) {
 
         free(buffer);
     }
-    vTaskDelete(NULL);
 }
 
 void socket_server_init() {
