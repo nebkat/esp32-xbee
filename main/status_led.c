@@ -44,7 +44,7 @@
 
 #define STATUS_LED_FREQ 1000
 
-SLIST_HEAD(status_led_color_list_t, status_led_color_t) status_led_colors_list;
+static SLIST_HEAD(status_led_color_list_t, status_led_color_t) status_led_colors_list;
 
 static TaskHandle_t led_task;
 

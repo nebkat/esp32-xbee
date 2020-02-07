@@ -42,7 +42,7 @@ struct stream_stats {
     SLIST_ENTRY(stream_stats) next;
 };
 
-SLIST_HEAD(stream_stats_list_t, stream_stats) stream_stats_list;
+static SLIST_HEAD(stream_stats_list_t, stream_stats) stream_stats_list;
 
 static void stream_stats_task(void *ctx) {
     while (true) {

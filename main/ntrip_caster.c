@@ -42,7 +42,7 @@ typedef struct ntrip_caster_client_t {
     SLIST_ENTRY(ntrip_caster_client_t) next;
 } ntrip_caster_client_t;
 
-SLIST_HEAD(caster_clients_list_t, ntrip_caster_client_t) caster_clients_list;
+static SLIST_HEAD(caster_clients_list_t, ntrip_caster_client_t) caster_clients_list;
 
 static void ntrip_caster_client_remove(ntrip_caster_client_t *caster_client) {
     struct sockaddr_in6 client_addr;
