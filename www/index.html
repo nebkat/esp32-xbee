@@ -44,7 +44,8 @@
         }
     </style>
     <script>
-        var releases_api_url = 'https://api.github.com/repos/nebkat/esp32-xbee/releases';
+        const releases_api_url = 'https://api.github.com/repos/nebkat/esp32-xbee/releases';
+        const releases_html_url = 'https://github.com/nebkat/esp32-xbee/releases';
 
         $.fn.serializeObject = function() {
             var o = {};
@@ -166,18 +167,23 @@
                 if (data.version.includes('-')) data.version = data.version.substring(0, data.version.indexOf('-'));
                 let current_version = parseFloat("0." + data.version.replace(/[^\d]/g, ""));
                 $.getJSON(releases_api_url, function(data) {
-                    if (typeof data === 'undefined') return;
+                    if (!(data instanceof Array)) return;
 
                     let latest_version = 0;
                     let release_url = null;
+                    let latest_version_prerelease = 0;
+                    let prerelease_url = null;
                     for (const release of data) {
-                        if (release.prerelease) continue;
-                        latest_version = parseFloat("0." + release.tag_name.replace(/[^\d]/g, ""));
+                        let version = parseFloat("0." + release.tag_name.replace(/[^\d]/g, ""));
+                        if (release.prerelease && latest_version_prerelease === 0) {
+                            latest_version_prerelease = version;
+                            prerelease_url = release.html_url;
+                            continue;
+                        }
+                        latest_version = version;
                         release_url = release.html_url;
                         break;
                     }
-
-                    if (latest_version < current_version) return;
 
                     projectVersionText.attr('href', release_url)
                         .removeClass('text-muted');
@@ -185,9 +191,17 @@
                     if (latest_version === current_version) {
                         projectVersionText.addClass('text-success')
                             .appendText(' (latest)');
-                    } else {
+                    } else if (latest_version > current_version) {
                         projectVersionText.addClass('text-warning')
                             .appendText(" (old)");
+                    } else if (latest_version < current_version) {
+                        projectVersionText.attr('href', releases_html_url)
+                            .addClass('text-primary')
+                            .appendText(' (dev)');
+                    }
+
+                    if (latest_version_prerelease > Math.max(latest_version, current_version)) {
+                        $('#prerelease-available').attr('href', prerelease_url).show();
                     }
                 });
 
@@ -451,7 +465,7 @@
 <body class="bg-light">
     <div class="container">
         <div class="pt-5 text-center">
-            <h2>ESP32 XBee Config <a id="project-version" href="https://github.com/nebkat/esp32-xbee/releases" class="text-muted small"></a></h2>
+            <h2>ESP32 XBee Config <a id="project-version" href="https://github.com/nebkat/esp32-xbee/releases" class="text-muted small"></a> <a id="prerelease-available" class="text-info small" style="display: none">(beta available)</a></h2>
 
             <p class="lead">Adjust the settings below and then click on "Submit". The device will restart with the new settings applied. If you have adjusted WiFi settings the device may be moved onto a new IP address, or require you to reconnect to its access point.</p>
         </div>
