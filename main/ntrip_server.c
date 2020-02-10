@@ -134,7 +134,7 @@ static void ntrip_server_task(void *ctx) {
 
         buffer = malloc(BUFFER_SIZE);
 
-        snprintf(buffer, BUFFER_SIZE, "SOURCE %s /%s HTTP/1.1" NEWLINE \
+        snprintf(buffer, BUFFER_SIZE, "SOURCE %s /%s" NEWLINE \
                 "Source-Agent: NTRIP %s/1.0" NEWLINE \
                 NEWLINE, password, mountpoint, NTRIP_SERVER_NAME);
 
