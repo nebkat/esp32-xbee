@@ -164,8 +164,7 @@ static void ntrip_server_task(void *ctx) {
         vTaskSuspend(NULL);
 
         // Disconnected
-        xEventGroupSetBits(server_event_group, CASTER_READY_BIT);
-        xEventGroupClearBits(server_event_group, DATA_SENT_BIT);
+        xEventGroupClearBits(server_event_group, CASTER_READY_BIT | DATA_SENT_BIT);
 
         if (status_led != NULL) status_led->active = false;
 
