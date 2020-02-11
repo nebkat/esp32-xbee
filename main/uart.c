@@ -33,17 +33,20 @@ static const char *TAG = "UART";
 
 ESP_EVENT_DEFINE_BASE(UART_EVENTS);
 
-void uart_register_handler(esp_event_handler_t event_handler) {
-    ESP_ERROR_CHECK(esp_event_handler_register(UART_EVENTS, 0, event_handler, NULL));
+void uart_register_read_handler(esp_event_handler_t event_handler) {
+    ESP_ERROR_CHECK(esp_event_handler_register(UART_EVENTS, UART_EVENT_READ, event_handler, NULL));
 }
 
-static uart_data_t buffer;
+void uart_register_write_handler(esp_event_handler_t event_handler) {
+    ESP_ERROR_CHECK(esp_event_handler_register(UART_EVENTS, UART_EVENT_WRITE, event_handler, NULL));
+}
+
 static int uart_port = -1;
 static bool uart_log_forward = false;
 
 static stream_stats_handle_t stream_stats;
 
-void uart_task(void *ctx);
+static void uart_task(void *ctx);
 
 void uart_init() {
     uart_log_forward = config_get_bool1(CONF_ITEM(KEY_CONFIG_UART_LOG_FORWARD));
@@ -85,7 +88,9 @@ void uart_init() {
     xTaskCreate(uart_task, "uart_task", 8192, NULL, TASK_PRIORITY_UART, NULL);
 }
 
-void uart_task(void *ctx) {
+static void uart_task(void *ctx) {
+    uart_data_t buffer;
+
     while (true) {
         buffer.len = uart_read_bytes(uart_port, buffer.buffer, UART_BUFFER_SIZE, pdMS_TO_TICKS(50));
         if (buffer.len < 0) {
@@ -96,14 +101,15 @@ void uart_task(void *ctx) {
 
         stream_stats_increment(stream_stats, buffer.len, 0);
 
-        esp_event_post(UART_EVENTS, 0, &buffer, buffer.len + sizeof(buffer.len), portMAX_DELAY);
+        esp_event_post(UART_EVENTS, UART_EVENT_READ, &buffer, buffer.len + sizeof(buffer.len), portMAX_DELAY);
     }
 }
 
-void uart_inject(void *data, size_t len) {
+void uart_inject(void *buf, size_t len) {
+    uart_data_t buffer;
     buffer.len = len;
-    memcpy(buffer.buffer, data, len);
-    esp_event_post(UART_EVENTS, 0, &buffer, buffer.len + sizeof(buffer.len), portMAX_DELAY);
+    memcpy(buffer.buffer, buf, len);
+    esp_event_post(UART_EVENTS, UART_EVENT_READ, &buffer, buffer.len + sizeof(buffer.len), portMAX_DELAY);
 }
 
 int uart_log(char *buf, size_t len) {
@@ -127,7 +133,7 @@ int uart_nmea(const char *fmt, ...) {
 
 int uart_write(char *buf, size_t len) {
     if (uart_port < 0) return 0;
-    if (len == 0) return -1;
+    if (len == 0) return 0;
 
     stream_stats_increment(stream_stats, 0, len);
 

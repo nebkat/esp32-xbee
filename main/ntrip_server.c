@@ -24,6 +24,7 @@
 #include <status_led.h>
 #include <retry.h>
 #include <stream_stats.h>
+#include <freertos/event_groups.h>
 #include "ntrip.h"
 #include "config.h"
 #include "util.h"
@@ -33,28 +34,66 @@ static const char *TAG = "NTRIP_SERVER";
 
 #define BUFFER_SIZE 512
 
+static const int CASTER_READY_BIT = BIT0;
+static const int DATA_READY_BIT = BIT1;
+static const int DATA_SENT_BIT = BIT2;
+
 static int sock = -1;
-static int server_keep_alive;
+
+static int data_keep_alive;
+static EventGroupHandle_t server_event_group;
 
 static status_led_handle_t status_led = NULL;
 static stream_stats_handle_t stream_stats = NULL;
 
+static TaskHandle_t server_task = NULL;
+static TaskHandle_t sleep_task = NULL;
+
 static void ntrip_server_uart_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) {
-    if (sock == -1) return;
+    EventBits_t event_bits = xEventGroupGetBits(server_event_group);
+
+    // Reset data availability bit
+    if ((event_bits & DATA_READY_BIT) == 0) {
+        xEventGroupSetBits(server_event_group, DATA_READY_BIT);
+
+        if (event_bits & DATA_SENT_BIT)
+            ESP_LOGI(TAG, "Data received by UART, will now reconnect to caster if disconnected");
+    }
+    data_keep_alive = 0;
+
+    // Ignore if caster is not connected and ready for data
+    if ((event_bits & CASTER_READY_BIT) == 0) return;
+
+    // Caster is connected and some data will be sent
+    if ((event_bits & DATA_SENT_BIT) == 0) xEventGroupSetBits(server_event_group, DATA_SENT_BIT);
 
     uart_data_t *data = event_data;
     int sent = write(sock, data->buffer, data->len);
     if (sent < 0) {
         destroy_socket(&sock);
+        vTaskResume(server_task);
     } else {
         stream_stats_increment(stream_stats, 0, sent);
     }
+}
 
-    server_keep_alive = 0;
+static void ntrip_server_sleep_task(void *ctx) {
+    while (true) {
+        // If wait time exceeded, clear data ready bit
+        if (data_keep_alive == NTRIP_KEEP_ALIVE_THRESHOLD) {
+            xEventGroupClearBits(server_event_group, DATA_READY_BIT);
+            ESP_LOGW(TAG, "No data received by UART in %d seconds, will not reconnect to caster if disconnected", NTRIP_KEEP_ALIVE_THRESHOLD / 1000);
+        }
+        data_keep_alive += NTRIP_KEEP_ALIVE_THRESHOLD / 10;
+        vTaskDelay(pdMS_TO_TICKS(NTRIP_KEEP_ALIVE_THRESHOLD / 10));
+    }
 }
 
 static void ntrip_server_task(void *ctx) {
-    uart_register_handler(ntrip_server_uart_handler);
+    server_event_group = xEventGroupCreate();
+    uart_register_read_handler(ntrip_server_uart_handler);
+    xTaskCreate(ntrip_server_sleep_task, "ntrip_server_sleep_task", 2048, NULL, TASK_PRIORITY_NTRIP, &sleep_task);
+    vTaskSuspend(sleep_task);
 
     config_color_t status_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_NTRIP_SERVER_COLOR));
     if (status_led_color.rgba != 0) status_led = status_led_add(status_led_color.rgba, STATUS_LED_FADE, 500, 2000, 0);
@@ -62,10 +101,19 @@ static void ntrip_server_task(void *ctx) {
 
     stream_stats = stream_stats_new("ntrip_server");
 
-    retry_delay_handle_t delay_handle = retry_init(true, 5, 2000);
+    retry_delay_handle_t delay_handle = retry_init(true, 5, 2000, 0);
 
     while (true) {
         retry_delay(delay_handle);
+
+        // Wait for data to be available
+        if ((xEventGroupGetBits(server_event_group) & DATA_READY_BIT) == 0) {
+            ESP_LOGI(TAG, "Waiting for UART input to connect to caster");
+            uart_nmea("$PESP,NTRIP,SRV,WAITING");
+            xEventGroupWaitBits(server_event_group, DATA_READY_BIT, true, false, portMAX_DELAY);
+        }
+
+        vTaskResume(sleep_task);
 
         wait_for_ip();
 
@@ -86,7 +134,7 @@ static void ntrip_server_task(void *ctx) {
 
         buffer = malloc(BUFFER_SIZE);
 
-        snprintf(buffer, BUFFER_SIZE, "SOURCE %s /%s HTTP/1.1" NEWLINE \
+        snprintf(buffer, BUFFER_SIZE, "SOURCE %s /%s" NEWLINE \
                 "Source-Agent: NTRIP %s/1.0" NEWLINE \
                 NEWLINE, password, mountpoint, NTRIP_SERVER_NAME);
 
@@ -98,7 +146,8 @@ static void ntrip_server_task(void *ctx) {
         buffer[len] = '\0';
 
         char *status = extract_http_header(buffer, "");
-        ERROR_ACTION(TAG, status == NULL || !ntrip_response_ok(status), free(status); goto _error, "Could not connect to mountpoint: %s", status == NULL ? "HTTP response malformed" : status);
+        ERROR_ACTION(TAG, status == NULL || !ntrip_response_ok(status), free(status); goto _error,
+                "Could not connect to mountpoint: %s", status == NULL ? "HTTP response malformed" : status);
         free(status);
 
         ESP_LOGI(TAG, "Successfully connected to %s:%d/%s", host, port, mountpoint);
@@ -108,19 +157,15 @@ static void ntrip_server_task(void *ctx) {
 
         if (status_led != NULL) status_led->active = true;
 
-        // Keep alive
-        server_keep_alive = NTRIP_KEEP_ALIVE_THRESHOLD;
-        while (true) {
-            if (server_keep_alive >= NTRIP_KEEP_ALIVE_THRESHOLD) {
-                int sent = write(sock, NEWLINE, NEWLINE_LENGTH);
-                if (sent < 0) break;
+        // Connected
+        xEventGroupSetBits(server_event_group, CASTER_READY_BIT);
 
-                server_keep_alive = 0;
-            }
+        // Await disconnect from UART handler
+        vTaskSuspend(NULL);
 
-            server_keep_alive += NTRIP_KEEP_ALIVE_THRESHOLD / 10;
-            vTaskDelay(pdMS_TO_TICKS(NTRIP_KEEP_ALIVE_THRESHOLD / 10));
-        }
+        // Disconnected
+        xEventGroupSetBits(server_event_group, CASTER_READY_BIT);
+        xEventGroupClearBits(server_event_group, DATA_SENT_BIT);
 
         if (status_led != NULL) status_led->active = false;
 
@@ -128,6 +173,8 @@ static void ntrip_server_task(void *ctx) {
         uart_nmea("$PESP,NTRIP,SRV,DISCONNECTED,%s:%d,%s", host, port, mountpoint);
 
         _error:
+        vTaskSuspend(sleep_task);
+
         destroy_socket(&sock);
 
         free(buffer);
@@ -135,12 +182,10 @@ static void ntrip_server_task(void *ctx) {
         free(mountpoint);
         free(password);
     }
-
-    vTaskDelete(NULL);
 }
 
 void ntrip_server_init() {
     if (!config_get_bool1(CONF_ITEM(KEY_CONFIG_NTRIP_SERVER_ACTIVE))) return;
 
-    xTaskCreate(ntrip_server_task, "ntrip_server_task", 4096, NULL, TASK_PRIORITY_NTRIP, NULL);
+    xTaskCreate(ntrip_server_task, "ntrip_server_task", 4096, NULL, TASK_PRIORITY_NTRIP, &server_task);
 }

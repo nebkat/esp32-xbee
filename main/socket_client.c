@@ -50,7 +50,7 @@ static void socket_client_uart_handler(void* handler_args, esp_event_base_t base
 }
 
 static void socket_client_task(void *ctx) {
-    uart_register_handler(socket_client_uart_handler);
+    uart_register_read_handler(socket_client_uart_handler);
 
     config_color_t status_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_SOCKET_CLIENT_COLOR));
     if (status_led_color.rgba != 0) status_led = status_led_add(status_led_color.rgba, STATUS_LED_FADE, 500, 2000, 0);
@@ -58,7 +58,7 @@ static void socket_client_task(void *ctx) {
 
     stream_stats = stream_stats_new("socket_client");
 
-    retry_delay_handle_t delay_handle = retry_init(true, 5, 2000);
+    retry_delay_handle_t delay_handle = retry_init(true, 5, 2000, 0);
 
     while (true) {
         retry_delay(delay_handle);

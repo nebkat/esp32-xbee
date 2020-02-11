@@ -33,28 +33,45 @@ void destroy_socket(int *socket) {
 }
 
 // Include space for port
-static char addr_str[INET6_ADDRSTRLEN + 6 + 1];
+static char addr_str[INET6_ADDRSTRLEN + 2 + 6 + 1];
 
 char *sockaddrtostr(struct sockaddr *a) {
+    struct sockaddr_in *a4 = (struct sockaddr_in *) a;
+    struct sockaddr_in6 *a6 = (struct sockaddr_in6 *) a;
+
+    sa_family_t family = a->sa_family;
     int port = 0;
+    ip4_addr_t *addr4 = NULL;
+    ip6_addr_t *addr6 = NULL;
+    if (family == PF_INET) {
+        addr4 = (ip4_addr_t *) &a4->sin_addr.s_addr;
+        port = a4->sin_port;
+    } else if (family == PF_INET6) {
+        addr6 = (ip6_addr_t *) &a6->sin6_addr;
+
+        if (ip6_addr_isipv4mappedipv6(addr6)) {
+            family = PF_INET;
+            addr4 = (ip4_addr_t *) &addr6->addr[3];
+        }
+
+        port = a6->sin6_port;
+    }
 
     // Get address string
-    if (a->sa_family == PF_INET) {
-        struct sockaddr_in *a4 = (struct sockaddr_in *) a;
-
-        inet_ntop(AF_INET, &a4->sin_addr, addr_str, INET_ADDRSTRLEN);
-        port = a4->sin_port;
-    } else if (a->sa_family == PF_INET6) {
-        struct sockaddr_in6 *a6 = (struct sockaddr_in6 *) a;
-
-        inet_ntop(AF_INET6, &a6->sin6_addr, addr_str, INET6_ADDRSTRLEN);
-        port = a6->sin6_port;
+    if (family == PF_INET) {
+        inet_ntop(AF_INET, addr4, addr_str, INET_ADDRSTRLEN);
+    } else if (family == PF_INET6) {
+        addr_str[0] = '[';
+        inet_ntop(AF_INET6, addr6, addr_str + 1, INET6_ADDRSTRLEN);
+        int ip_len = strlen(addr_str);
+        addr_str[ip_len] = ']';
+        addr_str[ip_len + 1] = '\0';
     } else {
         return "UNKNOWN";
     }
 
     // Append port number
-    sprintf(addr_str + strlen(addr_str), ":%d", port);
+    sprintf(addr_str + strlen(addr_str), ":%d", ntohs(port));
 
     return addr_str;
 }
@@ -63,7 +80,7 @@ char *extract_http_header(const char *buffer, const char *key) {
     // Need space for key, at least 1 character, and newline
     if (strlen(key) + 2 > strlen(buffer)) return NULL;
 
-    // Cheap search ignores potential problems where searched key is at the end of another longer key
+    // Cheap search ignores potential problems where searched key is suffix of another longer key
     char *start = strcasestr(buffer, key);
     if (!start) return NULL;
     start += strlen(key);
@@ -78,14 +95,16 @@ char *extract_http_header(const char *buffer, const char *key) {
     int len = (int) (end - start);
     if (len == 0) return NULL;
 
-    char *header_value = malloc(len);
+    char *header_value = malloc(len + 1);
     if (header_value == NULL) return NULL;
 
     memcpy(header_value, start, len);
+    header_value[len] = '\0';
     return header_value;
 }
 
 int connect_socket(char *host, int port, int socktype) {
+    int err;
     struct addrinfo addr_hints;
     struct addrinfo *addr_results;
 
@@ -98,9 +117,8 @@ int connect_socket(char *host, int port, int socktype) {
 
     char port_string[6];
     sprintf(port_string, "%u", port);
-    if (getaddrinfo(host, port_string, &addr_hints, &addr_results) < 0) {
-        return CONNECT_SOCKET_ERROR_RESOLVE;
-    }
+    err = getaddrinfo(host, port_string, &addr_hints, &addr_results);
+    if (err < 0) return CONNECT_SOCKET_ERROR_RESOLVE;
 
     int sock = -1;
 
@@ -112,11 +130,33 @@ int connect_socket(char *host, int port, int socktype) {
         if (connect(sock, addr_result->ai_addr, addr_result->ai_addrlen) == 0) break;
 
         close(sock);
+
+        sock = -1;
     }
 
     freeaddrinfo(addr_results);
 
-    return sock < 0 ? CONNECT_SOCKET_ERROR_CONNECT : sock;
+    if (sock < 0) return CONNECT_SOCKET_ERROR_CONNECT;
+
+    // Read/write timeouts
+    struct timeval timeout;
+    timeout.tv_sec = 10;
+    timeout.tv_usec = 0;
+    err = setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout));
+    if (err != 0) goto _opts_error;
+    err = setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout));
+    if (err != 0) goto _opts_error;
+
+    // Reuse address
+    int reuse = 1;
+    err = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+    if (err != 0) goto _opts_error;
+
+    return sock;
+
+    _opts_error:
+    close(sock);
+    return CONNECT_SOCKET_ERROR_OPTS;
 }
 
 char *http_auth_basic_header(const char *username, const char *password) {

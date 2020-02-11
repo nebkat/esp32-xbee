@@ -15,12 +15,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <limits.h>
 #include <stdbool.h>
 #include <esp_log.h>
 #include <esp_event_base.h>
 #include <sys/socket.h>
-#include <wifi.h>
 #include <mdns.h>
 #include <tasks.h>
 #include <status_led.h>
@@ -44,7 +42,7 @@ typedef struct ntrip_caster_client_t {
     SLIST_ENTRY(ntrip_caster_client_t) next;
 } ntrip_caster_client_t;
 
-SLIST_HEAD(caster_clients_list_t, ntrip_caster_client_t) caster_clients_list;
+static SLIST_HEAD(caster_clients_list_t, ntrip_caster_client_t) caster_clients_list;
 
 static void ntrip_caster_client_remove(ntrip_caster_client_t *caster_client) {
     struct sockaddr_in6 client_addr;
@@ -79,30 +77,24 @@ static void ntrip_caster_uart_handler(void* handler_args, esp_event_base_t base,
 static int ntrip_caster_socket_init() {
     int port = config_get_u16(CONF_ITEM(KEY_CONFIG_NTRIP_CASTER_PORT));
 
-#ifndef CONFIG_EXAMPLE_IPV6
-    struct sockaddr_in dest_addr;
-    dest_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    dest_addr.sin_family = AF_INET;
-    dest_addr.sin_port = htons(port);
-#else // IPV6
-    struct sockaddr_in6 dest_addr;
-        bzero(&dest_addr.sin6_addr.un, sizeof(dest_addr.sin6_addr.un));
-        dest_addr.sin6_family = AF_INET6;
-        dest_addr.sin6_port = htons(port);
-#endif
-
-    sock = socket(SOCKET_ADDR_FAMILY, SOCK_STREAM, SOCKET_IP_PROTOCOL);
-    ERROR_ACTION(TAG, sock < 0, return sock, "Could not create TCP socket: %d %s", errno, strerror(errno));
+    sock = socket(PF_INET6, SOCK_STREAM, 0);
+    ERROR_ACTION(TAG, sock < 0, return sock, "Could not create TCP socket: %d %s", errno, strerror(errno))
 
     int reuse = 1;
     int err = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
-    ERROR_ACTION(TAG, err != 0, destroy_socket(&sock); return err, "Could not set TCP socket options: %d %s", errno, strerror(errno));
+    ERROR_ACTION(TAG, err != 0, destroy_socket(&sock); return err, "Could not set TCP socket options: %d %s", errno, strerror(errno))
 
-    err = bind(sock, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
-    ERROR_ACTION(TAG, err != 0, destroy_socket(&sock); return err, "Could not bind TCP socket: %d %s", errno, strerror(errno));
+    struct sockaddr_in6 srv_addr = {
+            .sin6_family = PF_INET6,
+            .sin6_addr = IN6ADDR_ANY_INIT,
+            .sin6_port = htons(port)
+    };
+
+    err = bind(sock, (struct sockaddr *)&srv_addr, sizeof(srv_addr));
+    ERROR_ACTION(TAG, err != 0, destroy_socket(&sock); return err, "Could not bind TCP socket: %d %s", errno, strerror(errno))
 
     err = listen(sock, 1);
-    ERROR_ACTION(TAG, err != 0, destroy_socket(&sock); return err, "Could not listen to TCP socket: %d %s", errno, strerror(errno));
+    ERROR_ACTION(TAG, err != 0, destroy_socket(&sock); return err, "Could not listen on TCP socket: %d %s", errno, strerror(errno))
 
     ESP_LOGI(TAG, "Listening on port %d", port);
     uart_nmea("$PESP,NTRIP,CST,BIND,%d", port);
@@ -111,7 +103,7 @@ static int ntrip_caster_socket_init() {
 }
 
 static void ntrip_caster_task(void *ctx) {
-    uart_register_handler(ntrip_caster_uart_handler);
+    uart_register_read_handler(ntrip_caster_uart_handler);
 
     config_color_t status_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_NTRIP_CASTER_COLOR));
     if (status_led_color.rgba != 0) status_led = status_led_add(status_led_color.rgba, STATUS_LED_STATIC, 500, 2000, 0);
@@ -135,15 +127,24 @@ static void ntrip_caster_task(void *ctx) {
             struct sockaddr_in6 source_addr;
             size_t addr_len = sizeof(source_addr);
             sock_client = accept(sock, (struct sockaddr *)&source_addr, &addr_len);
-            ERROR_ACTION(TAG, sock_client < 0, goto _error, "Unable to accept connection: %d %s", errno, strerror(errno));
+            ERROR_ACTION(TAG, sock_client < 0, goto _error, "Could not accept connection: %d %s", errno, strerror(errno))
 
             int len = read(sock_client, buffer, BUFFER_SIZE - 1);
-            ERROR_ACTION(TAG, len <= 0, continue, "Unable to receive from client: %d %s", errno, strerror(errno));
+            ERROR_ACTION(TAG, len <= 0, continue, "Could not receive from client: %d %s", errno, strerror(errno))
             buffer[len] = '\0';
 
             // Find mountpoint requested by looking for GET /(%s)?
             char *mountpoint_path = extract_http_header(buffer, "GET ");
-            ERROR_ACTION(TAG, mountpoint_path == NULL, continue, "Client did not send GET request");
+            ERROR_ACTION(TAG, mountpoint_path == NULL, {
+                char *response = "HTTP/1.1 405 Method Not Allowed" NEWLINE \
+                        "Allow: GET" NEWLINE \
+                        NEWLINE;
+
+                int err = write(sock_client, response, strlen(response));
+                if (err < 0) ESP_LOGE(TAG, "Could not send response to client: %d %s", errno, strerror(errno));
+
+                continue;
+            }, "Client did not send GET request")
 
             // Move pointer to name of mountpoint, or empty string if sourcetable request
             char *mountpoint_name = mountpoint_path;
@@ -152,9 +153,8 @@ static void ntrip_caster_task(void *ctx) {
             if (mountpoint_name[0] == '/') mountpoint_name++;
 
             // Move to space or end of string (removing HTTP/1.1 from line)
-            int space;
-            for (space = 0; mountpoint_name[space] != ' ' && mountpoint_name[space] != '\0'; space++);
-            mountpoint_name[space] = '\0';
+            char *space = strstr(mountpoint_name, " ");
+            if (space != NULL) *space = '\0';
 
             // Print sourcetable if exact mountpoint was not requested
             bool print_sourcetable = strcasecmp(mountpoint, mountpoint_name) != 0;
@@ -217,7 +217,7 @@ static void ntrip_caster_task(void *ctx) {
 
             char response[] = "ICY 200 OK" NEWLINE NEWLINE;
             int err = write(sock_client, response, sizeof(response));
-            ERROR_ACTION(TAG, err < 0, continue, "Could not send response to client: %d %s", errno, strerror(errno));
+            ERROR_ACTION(TAG, err < 0, continue, "Could not send response to client: %d %s", errno, strerror(errno))
 
             ntrip_caster_client_t *client = malloc(sizeof(ntrip_caster_client_t));
             client->socket = sock_client;
@@ -237,8 +237,6 @@ static void ntrip_caster_task(void *ctx) {
 
         free(buffer);
     }
-
-    vTaskDelete(NULL);
 }
 
 void ntrip_caster_init() {

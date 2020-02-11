@@ -134,6 +134,7 @@ typedef struct config_item {
 #define KEY_CONFIG_WIFI_STA_COLOR "w_sta_color"
 #define KEY_CONFIG_WIFI_STA_SSID "w_sta_ssid"
 #define KEY_CONFIG_WIFI_STA_PASSWORD "w_sta_pass"
+#define KEY_CONFIG_WIFI_STA_SCAN_MODE_ALL "w_sta_scan_mode"
 #define KEY_CONFIG_WIFI_STA_STATIC "w_sta_static"
 #define KEY_CONFIG_WIFI_STA_IP "w_sta_ip"
 #define KEY_CONFIG_WIFI_STA_GATEWAY "w_sta_gw"

@@ -254,7 +254,7 @@ void wifi_init() {
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
 
     // Reconnect delay timer
-    delay_handle = retry_init(true, 5, 2000);
+    delay_handle = retry_init(true, 5, 2000, 60000);
 
     // SoftAP
     bool ap_enable = config_get_bool1(CONF_ITEM(KEY_CONFIG_WIFI_AP_ACTIVE));
@@ -339,9 +339,15 @@ void wifi_init() {
         size_t sta_password_len = sizeof(config_sta.sta.password);
         config_get_str_blob(CONF_ITEM(KEY_CONFIG_WIFI_STA_PASSWORD), &config_sta.sta.password, &sta_password_len);
         sta_password_len--; // Remove null terminator from length
+        config_sta.sta.scan_method = config_get_bool1(CONF_ITEM(KEY_CONFIG_WIFI_STA_SCAN_MODE_ALL))
+                ? WIFI_ALL_CHANNEL_SCAN : WIFI_FAST_SCAN;
 
-        ESP_LOGI(TAG, "WIFI_STA_CONNECTING: %s (%s)", config_sta.sta.ssid, sta_password_len == 0 ? "open" : "with password");
-        uart_nmea("$PESP,WIFI,STA,CONNECTING,%s,%c", config_sta.sta.ssid, sta_password_len == 0 ? 'O' : 'P');
+        ESP_LOGI(TAG, "WIFI_STA_CONNECTING: %s (%s), %s scan", config_sta.sta.ssid,
+                sta_password_len == 0 ? "open" : "with password",
+                config_sta.sta.scan_method == WIFI_ALL_CHANNEL_SCAN ? "all channel" : "fast");
+        uart_nmea("$PESP,WIFI,STA,CONNECTING,%s,%c,%c", config_sta.sta.ssid,
+                sta_password_len == 0 ? 'O' : 'P',
+                config_sta.sta.scan_method == WIFI_ALL_CHANNEL_SCAN ? 'A' : 'F');
     }
 
     // Listen for WiFi and IP events
@@ -373,17 +379,16 @@ void wifi_init() {
     ESP_ERROR_CHECK(esp_wifi_set_mode(wifi_mode));
 
     if (ap_enable) {
+        ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &config_ap));
+        ESP_ERROR_CHECK(esp_wifi_set_bandwidth(ESP_IF_WIFI_AP, WIFI_BW_HT20));
+
         config_color_t ap_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_WIFI_AP_COLOR));
         if (ap_led_color.rgba != 0) status_led_ap = status_led_add(ap_led_color.rgba, STATUS_LED_STATIC, 500, 2000, 0);
-
-        ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &config_ap));
     }
 
     if (sta_enable) {
-        config_color_t sta_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_WIFI_STA_COLOR));
-        if (sta_led_color.rgba != 0) status_led_sta = status_led_add(sta_led_color.rgba, STATUS_LED_STATIC, 500, 2000, 0);
-
         ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &config_sta));
+        ESP_ERROR_CHECK(esp_wifi_set_bandwidth(ESP_IF_WIFI_STA, WIFI_BW_HT20));
 
         // Keep track of connection for RSSI indicator, but suspend until connected
         xTaskCreate(wifi_sta_status_task, "wifi_sta_status", 2048, NULL, TASK_PRIORITY_WIFI_STATUS, &sta_status_task);
@@ -392,6 +397,9 @@ void wifi_init() {
         // Reconnect when disconnected
         xTaskCreate(wifi_sta_reconnect_task, "wifi_sta_reconnect", 4096, NULL, TASK_PRIORITY_WIFI_STATUS, &sta_reconnect_task);
         vTaskSuspend(sta_reconnect_task);
+
+        config_color_t sta_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_WIFI_STA_COLOR));
+        if (sta_led_color.rgba != 0) status_led_sta = status_led_add(sta_led_color.rgba, STATUS_LED_STATIC, 500, 2000, 0);
     }
 
     ESP_ERROR_CHECK(esp_wifi_start());

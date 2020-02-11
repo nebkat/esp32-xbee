@@ -16,6 +16,7 @@
 
 #define SOCKTYPE_NAME(socktype) (socktype == SOCK_STREAM ? "TCP" : (socktype == SOCK_DGRAM ? "UDP" : (socktype == SOCK_RAW ? "RAW" : "???")))
 
+#define CONNECT_SOCKET_ERROR_OPTS -3
 #define CONNECT_SOCKET_ERROR_RESOLVE -2
 #define CONNECT_SOCKET_ERROR_CONNECT -1
 

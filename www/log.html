@@ -2,38 +2,54 @@
 <head>
     <title>ESP32 XBee Log</title>
     <script src="jquery-3.4.1.min.js"></script>
-    <script src="bootstrap-4.3.1.bundle.min.js"></script>
-    <link rel="stylesheet" href="bootstrap-4.3.1.min.css">
+    <script src="bs-4.3.1.bundle.min.js"></script>
+    <link rel="stylesheet" href="bs-4.3.1.min.css">
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
     <style>
         #table tbody {
             font-family: "Courier New", Courier, monospace;
             white-space: pre;
         }
-
-        #table tbody td {
-            padding-top: 3px;
-            padding-bottom: 3px;
-        }
     </style>
     <script>
+        const LOG_PAGE_INDEX_KEY = 'log_page_index';
+
         $(function() {
+            var log_page_index = localStorage.getItem(LOG_PAGE_INDEX_KEY) || 0;
+            log_page_index++;
+            localStorage.setItem(LOG_PAGE_INDEX_KEY, log_page_index);
+
             var table = $("#table");
             var tbody = table.find('tbody');
 
-            var regex = /(?<level>[VDIWE]) \((?<time>[\d:.]+)\) (?<tag>[a-zA-Z_-]+): (?<comment>.*)/;
+            var regex = /(?<level>[VDIWER]) \((?<time>[\d:.]+)\) (?<tag>[a-zA-Z0-9_-]+): (?<comment>.*)/;
+
+            var index = 1;
 
             var update = function() {
-                $.get('log', function(data) {
+                // Don't reload if another page is open
+                if (localStorage.getItem(LOG_PAGE_INDEX_KEY) > log_page_index) {
+                    console.log("Disabling due to other page");
+                    $('#reload-modal').modal({backdrop: 'static', keyboard: false});
+                    return;
+                }
+
+                $.ajax({
+                    url: 'log',
+                    timeout: 2000
+                }).done(function(data) {
                     var lines = data.split("\n");
                     window.lines = lines;
 
-                    setTimeout(update, 2500);
-
                     for (var line of lines) {
+                        if (line === "@@@@") {
+                            index = 1;
+                            line = 'R (00:00:00.000) ESP32: Device Restarted';
+                        } else if (line.length === 0) {
+                            continue;
+                        }
 
                         var match = line.match(regex);
-
                         if (match === null) {
                             console.log("Discarded: " + line);
                             continue;
@@ -42,6 +58,9 @@
                         var levelBadge = $("<span class='badge'></span>");
 
                         switch (match.groups.level) {
+                            case 'R':
+                                levelBadge.addClass('badge-info').text("RESET");
+                                break;
                             case 'V':
                                 levelBadge.addClass('badge-light').text("VERBOSE");
                                 break;
@@ -60,14 +79,20 @@
                         }
 
                         var row = $("<tr></tr>")
-                            .append($("<td>1</td>"))
+                            .append($("<td>" + index++ + "</td>"))
                             .append($("<td>" + match.groups.time + "ms</td>"))
                             .append($("<td></td>").append(levelBadge))
                             .append($("<td>" + match.groups.tag + "</td>"))
                             .append($("<td>" + match.groups.comment + "</td>"));
 
+                        if (match.groups.level === 'R') {
+                            row.addClass('table-info');
+                        }
+
                         tbody.append(row);
                     }
+                }).always(function() {
+                    setTimeout(update, 2500);
                 });
             };
 
@@ -82,7 +107,7 @@
             <p class="lead">The device log will be loaded automatically below. Make sure that you have at most one log page open at a time. </p>
         </div>
         <div class="row">
-            <table id="table" class="table">
+            <table id="table" class="table table-sm">
                 <thead>
                     <tr>
                         <th scope="col">#</th>
@@ -96,6 +121,18 @@
 
                 </tbody>
             </table>
+        </div>
+    </div>
+    <div class="modal fade" id="reload-modal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-body">
+                    <p>Another log page has been opened in a different window/tab. To avoid both pages competing for the log from the device, please switch to the most recently opened log tab, or reload this page.</p>
+                </div>
+                <div class="modal-footer">
+                    <a href="javascript:location.reload()" class="btn btn-success">Reload</a>
+                </div>
+            </div>
         </div>
     </div>
 </body>
