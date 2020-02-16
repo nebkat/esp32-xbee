@@ -23,6 +23,7 @@
 #include <tasks.h>
 #include <status_led.h>
 #include <stream_stats.h>
+#include <esp_ota_ops.h>
 #include "ntrip.h"
 #include "config.h"
 #include "util.h"
@@ -180,13 +181,15 @@ static void ntrip_caster_task(void *ctx) {
                         mountpoint, strlen(username) == 0 ? 'N' : 'B');
 
                 snprintf(buffer, BUFFER_SIZE, "%s 200 OK" NEWLINE \
-                        "Server: %s/1.0" NEWLINE \
+                        "Server: NTRIP %s/%s" NEWLINE \
                         "Content-Type: text/plain" NEWLINE \
                         "Content-Length: %d" NEWLINE \
                         "Connection: close" NEWLINE \
                         NEWLINE \
                         "%s",
-                        ntrip_agent ? "SOURCETABLE" : "HTTP/1.0", NTRIP_CASTER_NAME, strlen(stream), stream);
+                        ntrip_agent ? "SOURCETABLE" : "HTTP/1.0",
+                        NTRIP_CASTER_NAME, &esp_ota_get_app_description()->version[1],
+                        strlen(stream), stream);
 
                 free(stream);
 
