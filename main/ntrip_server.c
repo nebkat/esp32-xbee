@@ -81,14 +81,14 @@ static void ntrip_server_sleep_task(void *ctx) {
     while (true) {
         // If wait time exceeded, send a keep alive packet
         if (data_keep_alive == NTRIP_KEEP_ALIVE_THRESHOLD) {
-            ESP_LOGW(TAG, "No data received by UART in %d seconds, sending keep alive packet", NTRIP_KEEP_ALIVE_THRESHOLD / 1000);
-            uart_write("\xD3\x00\x00\x00\x00\x00", 6);
+            ESP_LOGW(TAG, "No data received by UART in %d seconds, sending nul keep alive message", NTRIP_KEEP_ALIVE_THRESHOLD / 1000);
+            uart_write(NTRIP_KEEP_ALIVE_MESSAGE, NTRIP_KEEP_ALIVE_MESSAGE_LEN);
         }
         // If twice wait time exceeded, send a final keep alive packet, clear data ready bit
         if (data_keep_alive == NTRIP_KEEP_ALIVE_THRESHOLD * 2) {
             xEventGroupClearBits(server_event_group, DATA_READY_BIT);
             ESP_LOGW(TAG, "No data received by UART in %d seconds, keep alive once more, will not reconnect to caster if disconnected", NTRIP_KEEP_ALIVE_THRESHO6LD / 500);
-            uart_write("\xD3\x00\x00\x00\x00\x00", 6);
+            uart_write(NTRIP_KEEP_ALIVE_MESSAGE, NTRIP_KEEP_ALIVE_MESSAGE_LEN);
         }
         data_keep_alive += NTRIP_KEEP_ALIVE_THRESHOLD / 10;
         vTaskDelay(pdMS_TO_TICKS(NTRIP_KEEP_ALIVE_THRESHOLD / 10));
