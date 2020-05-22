@@ -172,3 +172,15 @@ char *http_auth_basic_header(const char *username, const char *password) {
     free(user_info);
     return digest;
 }
+
+esp_err_t write_all(int fd, char *buf, size_t buf_len) {
+    int ret;
+    while (buf_len > 0) {
+        ret = write(fd, buf, buf_len);
+        if (ret < 0) return ESP_FAIL;
+
+        buf += ret;
+        buf_len -= ret;
+    }
+    return ESP_OK;
+}
