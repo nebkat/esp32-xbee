@@ -31,14 +31,23 @@
 
 static const char *TAG = "UART";
 
-ESP_EVENT_DEFINE_BASE(UART_EVENTS);
+ESP_EVENT_DEFINE_BASE(UART_EVENT_READ);
+ESP_EVENT_DEFINE_BASE(UART_EVENT_WRITE);
 
 void uart_register_read_handler(esp_event_handler_t event_handler) {
-    ESP_ERROR_CHECK(esp_event_handler_register(UART_EVENTS, UART_EVENT_READ, event_handler, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(UART_EVENT_READ, ESP_EVENT_ANY_ID, event_handler, NULL));
+}
+
+void uart_unregister_read_handler(esp_event_handler_t event_handler) {
+    ESP_ERROR_CHECK(esp_event_handler_unregister(UART_EVENT_READ, ESP_EVENT_ANY_ID, event_handler));
 }
 
 void uart_register_write_handler(esp_event_handler_t event_handler) {
-    ESP_ERROR_CHECK(esp_event_handler_register(UART_EVENTS, UART_EVENT_WRITE, event_handler, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(UART_EVENT_WRITE, ESP_EVENT_ANY_ID, event_handler, NULL));
+}
+
+void uart_unregister_write_handler(esp_event_handler_t event_handler) {
+    ESP_ERROR_CHECK(esp_event_handler_unregister(UART_EVENT_WRITE, ESP_EVENT_ANY_ID, event_handler));
 }
 
 static int uart_port = -1;
@@ -89,27 +98,24 @@ void uart_init() {
 }
 
 static void uart_task(void *ctx) {
-    uart_data_t buffer;
+    uint8_t buffer[UART_BUFFER_SIZE];
 
     while (true) {
-        buffer.len = uart_read_bytes(uart_port, buffer.buffer, UART_BUFFER_SIZE, pdMS_TO_TICKS(50));
-        if (buffer.len < 0) {
+        int32_t len = uart_read_bytes(uart_port, buffer, sizeof(buffer), pdMS_TO_TICKS(50));
+        if (len < 0) {
             ESP_LOGE(TAG, "Error reading from UART");
-        } else if (buffer.len == 0) {
+        } else if (len == 0) {
             continue;
         }
 
-        stream_stats_increment(stream_stats, buffer.len, 0);
+        stream_stats_increment(stream_stats, len, 0);
 
-        esp_event_post(UART_EVENTS, UART_EVENT_READ, &buffer, buffer.len + sizeof(buffer.len), portMAX_DELAY);
+        esp_event_post(UART_EVENT_READ, len, &buffer, len, portMAX_DELAY);
     }
 }
 
 void uart_inject(void *buf, size_t len) {
-    uart_data_t buffer;
-    buffer.len = len;
-    memcpy(buffer.buffer, buf, len);
-    esp_event_post(UART_EVENTS, UART_EVENT_READ, &buffer, buffer.len + sizeof(buffer.len), portMAX_DELAY);
+    esp_event_post(UART_EVENT_READ, len,  buf, len, portMAX_DELAY);
 }
 
 int uart_log(char *buf, size_t len) {
@@ -135,7 +141,12 @@ int uart_write(char *buf, size_t len) {
     if (uart_port < 0) return 0;
     if (len == 0) return 0;
 
+    int written = uart_write_bytes(uart_port, buf, len);
+    if (written < 0) return written;
+
     stream_stats_increment(stream_stats, 0, len);
 
-    return uart_write_bytes(uart_port, buf, len);
+    esp_event_post(UART_EVENT_WRITE, len, buf, len, portMAX_DELAY);
+
+    return written;
 }

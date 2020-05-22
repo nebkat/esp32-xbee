@@ -39,13 +39,12 @@ static int sock = -1;
 static status_led_handle_t status_led = NULL;
 static stream_stats_handle_t stream_stats = NULL;
 
-static void socket_client_uart_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) {
+static void socket_client_uart_handler(void* handler_args, esp_event_base_t base, int32_t length, void* buffer) {
     if (sock == -1) return;
-    uart_data_t *data = event_data;
 
-    stream_stats_increment(stream_stats, 0, data->len);
+    stream_stats_increment(stream_stats, 0, length);
 
-    int err = write(sock, data->buffer, data->len);
+    int err = write(sock, buffer, length);
     if (err < 0) destroy_socket(&sock);
 }
 

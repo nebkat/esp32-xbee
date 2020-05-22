@@ -3,16 +3,10 @@
 
 #include <esp_event.h>
 
-ESP_EVENT_DECLARE_BASE(UART_EVENTS);
-#define UART_EVENT_READ 0
-#define UART_EVENT_WRITE 1
+ESP_EVENT_DECLARE_BASE(UART_EVENT_READ);
+ESP_EVENT_DECLARE_BASE(UART_EVENT_WRITE);
 
 #define UART_BUFFER_SIZE 4096
-
-typedef struct uart_data {
-    int len;
-    uint8_t buffer[UART_BUFFER_SIZE];
-} uart_data_t;
 
 void uart_init();
 

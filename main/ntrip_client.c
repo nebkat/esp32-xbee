@@ -44,12 +44,11 @@ static EventGroupHandle_t client_event_group;
 static status_led_handle_t status_led = NULL;
 static stream_stats_handle_t stream_stats = NULL;
 
-static void ntrip_client_uart_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) {
+static void ntrip_client_uart_handler(void* handler_args, esp_event_base_t base, int32_t length, void* buffer) {
     // Caster connected and ready for data
     if ((xEventGroupGetBits(client_event_group) & CASTER_READY_BIT) == 0) return;
 
-    uart_data_t *data = event_data;
-    int sent = send(sock, data->buffer, data->len, 0);
+    int sent = send(sock, buffer, length, 0);
     if (sent < 0) {
         destroy_socket(&sock);
     } else {

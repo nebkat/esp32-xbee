@@ -50,7 +50,7 @@ static stream_stats_handle_t stream_stats = NULL;
 static TaskHandle_t server_task = NULL;
 static TaskHandle_t sleep_task = NULL;
 
-static void ntrip_server_uart_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) {
+static void ntrip_server_uart_handler(void* handler_args, esp_event_base_t base, int32_t length, void* buffer) {
     EventBits_t event_bits = xEventGroupGetBits(server_event_group);
 
     // Reset data availability bit
@@ -68,8 +68,7 @@ static void ntrip_server_uart_handler(void* handler_args, esp_event_base_t base,
     // Caster is connected and some data will be sent
     if ((event_bits & DATA_SENT_BIT) == 0) xEventGroupSetBits(server_event_group, DATA_SENT_BIT);
 
-    uart_data_t *data = event_data;
-    int sent = write(sock, data->buffer, data->len);
+    int sent = write(sock, buffer, length);
     if (sent < 0) {
         destroy_socket(&sock);
         vTaskResume(server_task);

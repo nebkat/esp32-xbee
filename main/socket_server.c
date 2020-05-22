@@ -95,12 +95,10 @@ static void socket_client_remove(socket_client_t *socket_client) {
     if (status_led != NULL && SLIST_EMPTY(&socket_client_list)) status_led->flashing_mode = STATUS_LED_STATIC;
 }
 
-static void socket_server_uart_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) {
-    uart_data_t *data = event_data;
-
+static void socket_server_uart_handler(void* handler_args, esp_event_base_t base, int32_t length, void* buf) {
     socket_client_t *client, *client_tmp;
     SLIST_FOREACH_SAFE(client, &socket_client_list, next, client_tmp) {
-        int sent = write(client->socket, data->buffer, data->len);
+        int sent = write(client->socket, buf, length);
         if (sent < 0) {
             ESP_LOGE(TAG, "Could not write to %s socket: %d %s", SOCKTYPE_NAME(client->type), errno, strerror(errno));
             socket_client_remove(client);

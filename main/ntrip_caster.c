@@ -61,12 +61,10 @@ static void ntrip_caster_client_remove(ntrip_caster_client_t *caster_client) {
     if (status_led != NULL && SLIST_EMPTY(&caster_clients_list)) status_led->flashing_mode = STATUS_LED_STATIC;
 }
 
-static void ntrip_caster_uart_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) {
-    uart_data_t *data = event_data;
-
+static void ntrip_caster_uart_handler(void* handler_args, esp_event_base_t base, int32_t length, void* buffer) {
     ntrip_caster_client_t *client, *client_tmp;
     SLIST_FOREACH_SAFE(client, &caster_clients_list, next, client_tmp) {
-        int sent = write(client->socket, data->buffer, data->len);
+        int sent = write(client->socket, buffer, length);
         if (sent < 0) {
             ntrip_caster_client_remove(client);
         } else {
