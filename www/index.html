@@ -159,7 +159,14 @@
 
             form.find(":input").on('change', checkDisableIfs);
 
-            var projectVersionText = $('#project-version');
+            $('#switch-uart').on('click', function() {
+                if (confirm("WARNING\n\nThese settings are mainly for development purposes and do not normally have to be changed. With a standard ESP32 XBee device the only setting you may want to change is the UART baud rate. DO NOT PROCEED unless you know what you are doing.")) {
+                    $(this).hide();
+                    checkDisableIfs();
+                }
+            });
+
+            const projectVersionText = $('#project-version');
 
             $.getJSON('config').done(function(data) {
                 projectVersionText.text(data.version);
@@ -791,12 +798,15 @@
                             </div>
                         </div>
                     </div>
-                    <div class="card mb-3">
+                    <div class="card mb-3 border border-warning">
                         <div class="card-header">
                             UART (main communication)
                             <small class="uart-stats stream-stats" data-stream="uart"></small>
+                            <div class="d-inline float-right">
+                                <a href="javascript:void(0)" id="switch-uart">Configure</a>
+                            </div>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body" data-disable-if="#switch-uart" data-disable-if-condition=":visible">
                             <div class="form-row mb-3">
                                 <div class="col-8">
                                     <label class="d-block">UART controller</label>
