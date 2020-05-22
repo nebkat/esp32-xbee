@@ -32,6 +32,7 @@
 #include <esp_netif_sta_list.h>
 #include <stream_stats.h>
 #include <esp32/rom/crc.h>
+#include <lwip/sockets.h>
 #include "web_server.h"
 
 // Max length a file path can have on storage
@@ -637,6 +638,32 @@ static esp_err_t status_get_handler(httpd_req_t *req) {
         cJSON *rate = cJSON_AddObjectToObject(stream, "rate");
         cJSON_AddNumberToObject(rate, "in", values.rate_in);
         cJSON_AddNumberToObject(rate, "out", values.rate_out);
+    }
+
+    // Sockets
+    cJSON *sockets = cJSON_AddArrayToObject(root, "sockets");
+    for (int s = LWIP_SOCKET_OFFSET; s < LWIP_SOCKET_OFFSET + CONFIG_LWIP_MAX_SOCKETS; s++) {
+        int err;
+
+        int socktype;
+        socklen_t socktype_len = sizeof(socktype);
+        err = getsockopt(s, SOL_SOCKET, SO_TYPE, &socktype, &socktype_len);
+        if (err < 0) continue;
+
+        cJSON *socket = cJSON_CreateObject();
+
+        cJSON_AddStringToObject(socket, "type", SOCKTYPE_NAME(socktype));
+
+        struct sockaddr_in6 addr;
+        socklen_t socklen = sizeof(addr);
+
+        err = getsockname(s, (struct sockaddr *)&addr, &socklen);
+        if (err == 0) cJSON_AddStringToObject(socket, "local", sockaddrtostr((struct sockaddr *) &addr));
+
+        err = getpeername(s, (struct sockaddr *)&addr, &socklen);
+        if (err == 0) cJSON_AddStringToObject(socket, "peer", sockaddrtostr((struct sockaddr *) &addr));
+
+        cJSON_AddItemToArray(sockets, socket);
     }
 
     // WiFi
