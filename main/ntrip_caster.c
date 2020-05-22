@@ -176,8 +176,8 @@ static void ntrip_caster_task(void *ctx) {
 
             // Unknown mountpoint or sourcetable requested
             if (print_sourcetable) {
-                char *stream = NULL;
-                asprintf(&stream, "STR;%s;;;;;;;;0.00;0.00;0;0;;none;%c;N;0;" NEWLINE "ENDSOURCETABLE",
+                char stream[256] = "";
+                snprintf(stream, sizeof(stream), "STR;%s;;;;;;;;0.00;0.00;0;0;;none;%c;N;0;" NEWLINE "ENDSOURCETABLE",
                         mountpoint, strlen(username) == 0 ? 'N' : 'B');
 
                 snprintf(buffer, BUFFER_SIZE, "%s 200 OK" NEWLINE \
@@ -190,8 +190,6 @@ static void ntrip_caster_task(void *ctx) {
                         ntrip_agent ? "SOURCETABLE" : "HTTP/1.0",
                         NTRIP_CASTER_NAME, &esp_ota_get_app_description()->version[1],
                         strlen(stream), stream);
-
-                free(stream);
 
                 int err = write(sock_client, buffer, strlen(buffer));
                 if (err < 0) ESP_LOGE(TAG, "Could not send response to client: %d %s", errno, strerror(errno));
