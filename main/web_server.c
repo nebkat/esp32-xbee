@@ -66,7 +66,7 @@ static esp_err_t www_spiffs_init() {
             .base_path = WWW_PARTITION_PATH,
             .partition_label = WWW_PARTITION_LABEL,
             .max_files = 10,
-            .format_if_mount_failed = true
+            .format_if_mount_failed = false
     };
 
     esp_err_t ret = esp_vfs_spiffs_register(&conf);
