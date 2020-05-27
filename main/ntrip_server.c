@@ -113,9 +113,7 @@ static void ntrip_server_task(void *ctx) {
             uart_nmea("$PESP,NTRIP,SRV,WAITING");
             xEventGroupWaitBits(server_event_group, DATA_READY_BIT, true, false, portMAX_DELAY);
         }
-
-        vTaskResume(sleep_task);
-
+        
         wait_for_ip();
 
         char *buffer = NULL;
@@ -161,6 +159,8 @@ static void ntrip_server_task(void *ctx) {
         // Connected
         xEventGroupSetBits(server_event_group, CASTER_READY_BIT);
 
+        vTaskResume(sleep_task);
+        
         // Await disconnect from UART handler
         vTaskSuspend(NULL);
 
@@ -172,9 +172,9 @@ static void ntrip_server_task(void *ctx) {
         ESP_LOGW(TAG, "Disconnected from %s:%d/%s", host, port, mountpoint);
         uart_nmea("$PESP,NTRIP,SRV,DISCONNECTED,%s:%d,%s", host, port, mountpoint);
 
-        _error:
         vTaskSuspend(sleep_task);
-
+        
+        _error:
         destroy_socket(&sock);
 
         free(buffer);
