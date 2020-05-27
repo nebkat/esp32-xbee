@@ -24,7 +24,7 @@
 #include <status_led.h>
 #include <stream_stats.h>
 #include <esp_ota_ops.h>
-#include "ntrip.h"
+#include "interface/ntrip.h"
 #include "config.h"
 #include "util.h"
 #include "uart.h"

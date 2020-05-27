@@ -24,7 +24,7 @@
 #include <wifi.h>
 #include <esp_log.h>
 #include <sys/socket.h>
-#include "socket_client.h"
+#include "interface/socket_client.h"
 
 #include <config.h>
 #include <retry.h>

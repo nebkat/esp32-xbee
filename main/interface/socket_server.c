@@ -24,7 +24,7 @@
 #include <tasks.h>
 
 #include "config.h"
-#include "socket_server.h"
+#include "interface/socket_server.h"
 #include "status_led.h"
 #include "stream_stats.h"
 #include "uart.h"

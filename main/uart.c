@@ -20,13 +20,12 @@
 #include <esp_event.h>
 #include <esp_log.h>
 #include <string.h>
-#include <nmea.h>
+#include <protocol/nmea.h>
 #include <stream_stats.h>
 
-#include "bluetooth.h"
 #include "uart.h"
 #include "config.h"
-#include "socket_server.h"
+#include "interface/socket_server.h"
 #include "tasks.h"
 
 static const char *TAG = "UART";

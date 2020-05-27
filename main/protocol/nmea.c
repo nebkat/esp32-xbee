@@ -21,7 +21,7 @@
 #include <string.h>
 #include <stdarg.h>
 
-#include "nmea.h"
+#include "protocol/nmea.h"
 
 uint8_t nmea_calculate_checksum(char *sentence) {
     uint8_t checksum = 0;

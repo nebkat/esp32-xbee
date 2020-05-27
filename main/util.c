@@ -21,7 +21,6 @@
 #include <mbedtls/base64.h>
 #include <sys/socket.h>
 #include <lwip/netdb.h>
-#include <esp_log.h>
 
 #include "util.h"
 

@@ -18,7 +18,7 @@
 #include <web_server.h>
 #include <log.h>
 #include <status_led.h>
-#include <socket_client.h>
+#include <interface/socket_client.h>
 #include <esp_sntp.h>
 #include <core_dump.h>
 #include <esp_ota_ops.h>
@@ -33,9 +33,9 @@
 
 #include "config.h"
 #include "wifi.h"
-#include "socket_server.h"
+#include "interface/socket_server.h"
 #include "uart.h"
-#include "ntrip.h"
+#include "interface/ntrip.h"
 #include "tasks.h"
 
 static const char *TAG = "MAIN";

@@ -23,7 +23,7 @@
 #include <wifi.h>
 #include <tasks.h>
 #include <esp_http_client.h>
-#include "ntrip.h"
+#include "interface/ntrip.h"
 #include "config.h"
 #include "util.h"
 #include "uart.h"
