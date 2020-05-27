@@ -94,7 +94,7 @@ static void ntrip_server_sleep_task(void *ctx) {
 static void ntrip_server_task(void *ctx) {
     server_event_group = xEventGroupCreate();
     uart_register_read_handler(ntrip_server_uart_handler);
-    xTaskCreate(ntrip_server_sleep_task, "ntrip_server_sleep_task", 2048, NULL, TASK_PRIORITY_NTRIP, &sleep_task);
+    xTaskCreate(ntrip_server_sleep_task, "ntrip_server_sleep_task", 2048, NULL, TASK_PRIORITY_INTERFACE, &sleep_task);
 
     config_color_t status_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_NTRIP_SERVER_COLOR));
     if (status_led_color.rgba != 0) status_led = status_led_add(status_led_color.rgba, STATUS_LED_FADE, 500, 2000, 0);
@@ -187,5 +187,5 @@ static void ntrip_server_task(void *ctx) {
 void ntrip_server_init() {
     if (!config_get_bool1(CONF_ITEM(KEY_CONFIG_NTRIP_SERVER_ACTIVE))) return;
 
-    xTaskCreate(ntrip_server_task, "ntrip_server_task", 4096, NULL, TASK_PRIORITY_NTRIP, &server_task);
+    xTaskCreate(ntrip_server_task, "ntrip_server_task", 4096, NULL, TASK_PRIORITY_INTERFACE, &server_task);
 }

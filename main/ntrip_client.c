@@ -153,5 +153,5 @@ static void ntrip_client_task(void *ctx) {
 void ntrip_client_init() {
     if (!config_get_bool1(CONF_ITEM(KEY_CONFIG_NTRIP_CLIENT_ACTIVE))) return;
 
-    xTaskCreate(ntrip_client_task, "ntrip_client_task", 4096, NULL, TASK_PRIORITY_NTRIP, NULL);
+    xTaskCreate(ntrip_client_task, "ntrip_client_task", 4096, NULL, TASK_PRIORITY_INTERFACE, NULL);
 }

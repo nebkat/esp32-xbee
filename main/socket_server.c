@@ -21,6 +21,7 @@
 #include <lwip/sockets.h>
 #include <string.h>
 #include <sys/param.h>
+#include <tasks.h>
 
 #include "config.h"
 #include "socket_server.h"
@@ -303,5 +304,5 @@ static void socket_server_task(void *ctx) {
 void socket_server_init() {
     if (!config_get_bool1(CONF_ITEM(KEY_CONFIG_SOCKET_SERVER_ACTIVE))) return;
 
-    xTaskCreate(socket_server_task, "socket_server_task", 4096, NULL, 2, NULL);
+    xTaskCreate(socket_server_task, "socket_server_task", 4096, NULL, TASK_PRIORITY_INTERFACE, NULL);
 }
