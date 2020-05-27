@@ -40,6 +40,7 @@
 #define FILE_HASH_SUFFIX ".crc"
 
 #define WWW_PARTITION_PATH "/www"
+#define WWW_PARTITION_LABEL "www"
 #define BUFFER_SIZE 2048
 
 static const char *TAG = "WEB";
@@ -63,7 +64,7 @@ static esp_err_t www_spiffs_init() {
 
     esp_vfs_spiffs_conf_t conf = {
             .base_path = WWW_PARTITION_PATH,
-            .partition_label = NULL,
+            .partition_label = WWW_PARTITION_LABEL,
             .max_files = 10,
             .format_if_mount_failed = true
     };
@@ -81,7 +82,7 @@ static esp_err_t www_spiffs_init() {
     }
 
     size_t total = 0, used = 0;
-    ret = esp_spiffs_info(NULL, &total, &used);
+    ret = esp_spiffs_info(WWW_PARTITION_LABEL, &total, &used);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get SPIFFS partition information (%s)", esp_err_to_name(ret));
         return ESP_FAIL;
