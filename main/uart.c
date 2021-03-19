@@ -76,18 +76,18 @@ void uart_init() {
 
     uart_config_t uart_config = {
             .baud_rate = config_get_u32(CONF_ITEM(KEY_CONFIG_UART_BAUD_RATE)),
-            .data_bits = config_get_u8(CONF_ITEM(KEY_CONFIG_UART_DATA_BITS)),
-            .parity = config_get_u8(CONF_ITEM(KEY_CONFIG_UART_PARITY)),
-            .stop_bits = config_get_u8(CONF_ITEM(KEY_CONFIG_UART_STOP_BITS)),
+            .data_bits = config_get_i8(CONF_ITEM(KEY_CONFIG_UART_DATA_BITS)),
+            .parity = config_get_i8(CONF_ITEM(KEY_CONFIG_UART_PARITY)),
+            .stop_bits = config_get_i8(CONF_ITEM(KEY_CONFIG_UART_STOP_BITS)),
             .flow_ctrl = flow_ctrl
     };
     ESP_ERROR_CHECK(uart_param_config(uart_port, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(
             uart_port,
-            config_get_i8(CONF_ITEM(KEY_CONFIG_UART_TX_PIN)),
-            config_get_i8(CONF_ITEM(KEY_CONFIG_UART_RX_PIN)),
-            config_get_i8(CONF_ITEM(KEY_CONFIG_UART_RTS_PIN)),
-            config_get_i8(CONF_ITEM(KEY_CONFIG_UART_CTS_PIN))
+            config_get_u8(CONF_ITEM(KEY_CONFIG_UART_TX_PIN)),
+            config_get_u8(CONF_ITEM(KEY_CONFIG_UART_RX_PIN)),
+            config_get_u8(CONF_ITEM(KEY_CONFIG_UART_RTS_PIN)),
+            config_get_u8(CONF_ITEM(KEY_CONFIG_UART_CTS_PIN))
     ));
     ESP_ERROR_CHECK(uart_driver_install(uart_port, UART_BUFFER_SIZE, UART_BUFFER_SIZE, 0, NULL, 0));
 
