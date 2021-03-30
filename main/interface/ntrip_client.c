@@ -48,6 +48,8 @@ static void ntrip_client_uart_handler(void* handler_args, esp_event_base_t base,
     // Caster connected and ready for data
     if ((xEventGroupGetBits(client_event_group) & CASTER_READY_BIT) == 0) return;
 
+    if (!config_get_bool1(CONF_ITEM(KEY_CONFIG_NTRIP_CLIENT_FW_UART))) return;
+    
     int sent = send(sock, buffer, length, 0);
     if (sent < 0) {
         destroy_socket(&sock);

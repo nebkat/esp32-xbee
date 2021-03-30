@@ -130,6 +130,10 @@ const config_item_t CONFIG_ITEMS[] = {
                 .type = CONFIG_ITEM_TYPE_STRING,
                 .secret = true,
                 .def.str = ""
+        }, {
+                .key = KEY_CONFIG_NTRIP_CLIENT_FW_UART,
+                .type = CONFIG_ITEM_TYPE_BOOL,
+                .def.bool1 = false
         },
 
         {
@@ -202,6 +206,10 @@ const config_item_t CONFIG_ITEMS[] = {
                 .key = KEY_CONFIG_SOCKET_CLIENT_CONNECT_MESSAGE,
                 .type = CONFIG_ITEM_TYPE_STRING,
                 .def.str = "\n"
+        }, {
+                .key = KEY_CONFIG_SOCKET_CLIENT_FW_UART,
+                .type = CONFIG_ITEM_TYPE_BOOL,
+                .def.bool1 = false
         },
 
         // UART
