@@ -29,6 +29,7 @@
 #include <retry.h>
 #include <freertos/event_groups.h>
 #include <esp_netif_ip_addr.h>
+#include <lwip/lwip_napt.h>
 #include "wifi.h"
 #include "config.h"
 
@@ -368,6 +369,8 @@ void wifi_init() {
     wifi_mode_t wifi_mode;
     if (sta_enable && ap_enable) {
         wifi_mode = WIFI_MODE_APSTA;
+
+        ip_napt_enable(my_ap_ip, 1);
     } else if (ap_enable) {
         wifi_mode = WIFI_MODE_AP;
     } else if (sta_enable) {

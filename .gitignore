@@ -9,6 +9,9 @@ install_manifest.txt
 compile_commands.json
 CTestTestfile.cmake
 _deps
+cmake-build-debug
+cmake-build-debug-xtensa-esp32-elf
 
 build
 sdkconfig.old
+.idea/
