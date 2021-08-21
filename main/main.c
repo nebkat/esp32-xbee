@@ -120,8 +120,8 @@ void app_main()
         status_led->active = true;
     }
 
-    esp_netif_init();
 
+    net_init();
     wifi_init();
 
     web_server_init();

@@ -177,6 +177,10 @@ static void handle_sta_auth_mode_change(void *esp_netif, esp_event_base_t base, 
 static void handle_ap_start(void *esp_netif, esp_event_base_t base, int32_t event_id, void *event_data) {
     ESP_LOGI(TAG, "WIFI_EVENT_AP_START");
 
+    esp_netif_ip_info_t ip_info_ap;
+    esp_netif_get_ip_info(esp_netif_ap, &ip_info_ap);
+    ip_napt_enable(ip_info_ap.ip.addr, 1);
+
     ap_active = true;
 }
 
@@ -214,6 +218,16 @@ static void handle_ap_sta_disconnected(void *esp_netif, esp_event_base_t base, i
 static void handle_sta_got_ip(void *esp_netif, esp_event_base_t base, int32_t event_id, void *event_data) {
     const ip_event_got_ip_t *event = (const ip_event_got_ip_t *) event_data;
 
+    // Update AP DHCPS DNS info
+    if (ap_active) {
+        esp_netif_dns_info_t dns_info_sta;
+        ESP_ERROR_CHECK(esp_netif_get_dns_info(esp_netif_sta, ESP_NETIF_DNS_MAIN, &dns_info_sta));
+
+        ESP_ERROR_CHECK(esp_netif_dhcps_stop(esp_netif_ap));
+        ESP_ERROR_CHECK(esp_netif_set_dns_info(esp_netif_ap, ESP_NETIF_DNS_MAIN, &dns_info_sta));
+        ESP_ERROR_CHECK(esp_netif_dhcps_start(esp_netif_ap));
+    }
+
     ESP_LOGI(TAG, "IP_EVENT_STA_GOT_IP: ip: " IPSTR "/%d, gw: " IPSTR,
             IP2STR(&event->ip_info.ip),
             ffs(~event->ip_info.netmask.addr) - 1,
@@ -248,14 +262,8 @@ void wait_for_network() {
     xEventGroupWaitBits(wifi_event_group, WIFI_STA_GOT_IPV4_BIT | WIFI_AP_STA_CONNECTED_BIT, false, false, portMAX_DELAY);
 }
 
-void wifi_init() {
-    wifi_event_group = xEventGroupCreate();
-    wifi_init_config_t wifi_init_config = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&wifi_init_config));
-    ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
-
-    // Reconnect delay timer
-    delay_handle = retry_init(true, 5, 2000, 60000);
+void net_init() {
+    esp_netif_init();
 
     // SoftAP
     bool ap_enable = config_get_bool1(CONF_ITEM(KEY_CONFIG_WIFI_AP_ACTIVE));
@@ -269,9 +277,85 @@ void wifi_init() {
         uint8_t subnet = config_get_u8(CONF_ITEM(KEY_CONFIG_WIFI_STA_SUBNET));
         ip_info_ap.netmask.addr = esp_netif_htonl(0xffffffffu << (32u - subnet));
 
-        esp_netif_dhcps_stop(esp_netif_ap);
-        esp_netif_set_ip_info(esp_netif_ap, &ip_info_ap);
-        esp_netif_dhcps_start(esp_netif_ap);
+        uint8_t dhcps_offer = true;
+        ESP_ERROR_CHECK(esp_netif_dhcps_option(esp_netif_ap, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &dhcps_offer, 1));
+
+        ESP_ERROR_CHECK(esp_netif_dhcps_stop(esp_netif_ap));
+        ESP_ERROR_CHECK(esp_netif_set_ip_info(esp_netif_ap, &ip_info_ap));
+        ESP_ERROR_CHECK(esp_netif_dhcps_start(esp_netif_ap));
+    }
+
+    // STA
+    bool sta_enable = config_get_bool1(CONF_ITEM(KEY_CONFIG_WIFI_STA_ACTIVE));
+    if (sta_enable) {
+        esp_netif_ip_info_t ip_info_sta;
+        esp_netif_sta = esp_netif_create_default_wifi_sta();
+
+        // Static IP configuration
+        if (config_get_bool1(CONF_ITEM(KEY_CONFIG_WIFI_STA_STATIC))) {
+            config_get_primitive(CONF_ITEM(KEY_CONFIG_WIFI_STA_IP), &ip_info_sta.ip);
+            config_get_primitive(CONF_ITEM(KEY_CONFIG_WIFI_STA_GATEWAY), &ip_info_sta.gw);
+            uint8_t subnet = config_get_u8(CONF_ITEM(KEY_CONFIG_WIFI_STA_SUBNET));
+            ip_info_sta.netmask.addr = esp_netif_htonl(0xffffffffu << (32u - subnet));
+
+            esp_netif_dns_info_t dns_info_sta_main, dns_info_sta_backup;
+            config_get_primitive(CONF_ITEM(KEY_CONFIG_WIFI_STA_DNS_A), &dns_info_sta_main.ip.u_addr.ip4.addr);
+            config_get_primitive(CONF_ITEM(KEY_CONFIG_WIFI_STA_DNS_B), &dns_info_sta_backup.ip.u_addr.ip4.addr);
+
+            ESP_ERROR_CHECK(esp_netif_dhcpc_stop(esp_netif_sta));
+            ESP_ERROR_CHECK(esp_netif_set_ip_info(esp_netif_sta, &ip_info_sta));
+            ESP_ERROR_CHECK(esp_netif_set_dns_info(esp_netif_sta, ESP_NETIF_DNS_MAIN, &dns_info_sta_main));
+            ESP_ERROR_CHECK(esp_netif_set_dns_info(esp_netif_sta, ESP_NETIF_DNS_BACKUP, &dns_info_sta_backup));
+            ESP_ERROR_CHECK(esp_netif_dhcpc_start(esp_netif_sta));
+        }
+    }
+}
+
+void wifi_init() {
+    wifi_init_config_t wifi_init_config = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&wifi_init_config));
+
+    wifi_event_group = xEventGroupCreate();
+
+    // Listen for WiFi and IP events
+    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_START, &handle_sta_start, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_STOP, &handle_sta_stop, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_CONNECTED, &handle_sta_connected, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, &handle_sta_disconnected, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_AUTHMODE_CHANGE, &handle_sta_auth_mode_change, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_START, &handle_ap_start, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_STOP, &handle_ap_stop, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_STACONNECTED, &handle_ap_sta_connected, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_STADISCONNECTED, &handle_ap_sta_disconnected, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &handle_sta_got_ip, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_LOST_IP, &handle_sta_lost_ip, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_AP_STAIPASSIGNED, &handle_ap_sta_ip_assigned, NULL));
+
+    // Reconnect delay timer
+    delay_handle = retry_init(true, 5, 2000, 60000);
+
+    bool sta_enable = config_get_bool1(CONF_ITEM(KEY_CONFIG_WIFI_STA_ACTIVE));
+    bool ap_enable = config_get_bool1(CONF_ITEM(KEY_CONFIG_WIFI_AP_ACTIVE));
+
+    // Configure and connect
+    wifi_mode_t wifi_mode;
+    if (sta_enable && ap_enable) {
+        wifi_mode = WIFI_MODE_APSTA;
+    } else if (ap_enable) {
+        wifi_mode = WIFI_MODE_AP;
+    } else if (sta_enable) {
+        wifi_mode = WIFI_MODE_STA;
+    } else {
+        return;
+    }
+
+    ESP_ERROR_CHECK(esp_wifi_set_mode(wifi_mode));
+    ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
+
+    // SoftAP
+    if (ap_enable) {
+        esp_netif_ip_info_t ip_info_ap;
+        esp_netif_get_ip_info(esp_netif_ap, &ip_info_ap);
 
         config_ap.ap.max_connection = 4;
         size_t ap_ssid_len = sizeof(config_ap.ap.ssid);
@@ -281,7 +365,7 @@ void wifi_init() {
         if (ap_ssid_len == 0) {
             // Generate a default AP SSID based on MAC address and store
             uint8_t mac[6];
-            esp_wifi_get_mac(ESP_IF_WIFI_AP, mac);
+            esp_wifi_get_mac(WIFI_IF_AP, mac);
             snprintf((char *) config_ap.ap.ssid, sizeof(config_ap.ap.ssid), "ESP_XBee_%02X%02X%02X",
                     mac[3], mac[4], mac[5]);
             config_ap.ap.ssid_len = strlen((char *) config_ap.ap.ssid);
@@ -308,31 +392,16 @@ void wifi_init() {
         uart_nmea("$PESP,WIFI,AP,IP," IPSTR "/%d",
                 IP2STR(&ip_info_ap.ip),
                 ffs(~ip_info_ap.netmask.addr) - 1);
+
+        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &config_ap));
+        ESP_ERROR_CHECK(esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20));
+
+        config_color_t ap_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_WIFI_AP_COLOR));
+        if (ap_led_color.rgba != 0) status_led_ap = status_led_add(ap_led_color.rgba, STATUS_LED_STATIC, 500, 2000, 0);
     }
 
     // STA
-    bool sta_enable = config_get_bool1(CONF_ITEM(KEY_CONFIG_WIFI_STA_ACTIVE));
     if (sta_enable) {
-        esp_netif_sta = esp_netif_create_default_wifi_sta();
-
-        // Static IP configuration
-        if (config_get_bool1(CONF_ITEM(KEY_CONFIG_WIFI_STA_STATIC))) {
-            esp_netif_ip_info_t ip_info_sta;
-            config_get_primitive(CONF_ITEM(KEY_CONFIG_WIFI_STA_IP), &ip_info_sta.ip);
-            config_get_primitive(CONF_ITEM(KEY_CONFIG_WIFI_STA_GATEWAY), &ip_info_sta.gw);
-            uint8_t subnet = config_get_u8(CONF_ITEM(KEY_CONFIG_WIFI_STA_SUBNET));
-            ip_info_sta.netmask.addr = esp_netif_htonl(0xffffffffu << (32u - subnet));
-
-            esp_netif_dns_info_t dns_info_sta_main, dns_info_sta_backup;
-            config_get_primitive(CONF_ITEM(KEY_CONFIG_WIFI_STA_DNS_A), &dns_info_sta_main.ip.u_addr.ip4.addr);
-            config_get_primitive(CONF_ITEM(KEY_CONFIG_WIFI_STA_DNS_B), &dns_info_sta_backup.ip.u_addr.ip4.addr);
-
-            esp_netif_dhcpc_stop(esp_netif_sta);
-            esp_netif_set_ip_info(esp_netif_sta, &ip_info_sta);
-            esp_netif_set_dns_info(esp_netif_sta, ESP_NETIF_DNS_MAIN, &dns_info_sta_main);
-            esp_netif_set_dns_info(esp_netif_sta, ESP_NETIF_DNS_BACKUP, &dns_info_sta_backup);
-        }
-
         size_t sta_ssid_len = sizeof(config_sta.sta.ssid);
         config_get_str_blob(CONF_ITEM(KEY_CONFIG_WIFI_STA_SSID), &config_sta.sta.ssid, &sta_ssid_len);
         sta_ssid_len--; // Remove null terminator from length
@@ -349,49 +418,9 @@ void wifi_init() {
         uart_nmea("$PESP,WIFI,STA,CONNECTING,%s,%c,%c", config_sta.sta.ssid,
                 sta_password_len == 0 ? 'O' : 'P',
                 config_sta.sta.scan_method == WIFI_ALL_CHANNEL_SCAN ? 'A' : 'F');
-    }
 
-    // Listen for WiFi and IP events
-    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_START, &handle_sta_start, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_STOP, &handle_sta_stop, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_CONNECTED, &handle_sta_connected, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, &handle_sta_disconnected, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_AUTHMODE_CHANGE, &handle_sta_auth_mode_change, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_START, &handle_ap_start, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_STOP, &handle_ap_stop, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_STACONNECTED, &handle_ap_sta_connected, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_STADISCONNECTED, &handle_ap_sta_disconnected, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &handle_sta_got_ip, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_LOST_IP, &handle_sta_lost_ip, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_AP_STAIPASSIGNED, &handle_ap_sta_ip_assigned, NULL));
-
-    // Configure and connect
-    wifi_mode_t wifi_mode;
-    if (sta_enable && ap_enable) {
-        wifi_mode = WIFI_MODE_APSTA;
-
-        ip_napt_enable(my_ap_ip, 1);
-    } else if (ap_enable) {
-        wifi_mode = WIFI_MODE_AP;
-    } else if (sta_enable) {
-        wifi_mode = WIFI_MODE_STA;
-    } else {
-        return;
-    }
-
-    ESP_ERROR_CHECK(esp_wifi_set_mode(wifi_mode));
-
-    if (ap_enable) {
-        ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &config_ap));
-        ESP_ERROR_CHECK(esp_wifi_set_bandwidth(ESP_IF_WIFI_AP, WIFI_BW_HT20));
-
-        config_color_t ap_led_color = config_get_color(CONF_ITEM(KEY_CONFIG_WIFI_AP_COLOR));
-        if (ap_led_color.rgba != 0) status_led_ap = status_led_add(ap_led_color.rgba, STATUS_LED_STATIC, 500, 2000, 0);
-    }
-
-    if (sta_enable) {
-        ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &config_sta));
-        ESP_ERROR_CHECK(esp_wifi_set_bandwidth(ESP_IF_WIFI_STA, WIFI_BW_HT20));
+        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &config_sta));
+        ESP_ERROR_CHECK(esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20));
 
         // Keep track of connection for RSSI indicator, but suspend until connected
         xTaskCreate(wifi_sta_status_task, "wifi_sta_status", 2048, NULL, TASK_PRIORITY_WIFI_STATUS, &sta_status_task);

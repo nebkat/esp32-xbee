@@ -26,6 +26,7 @@ typedef struct wifi_sta_status {
     esp_ip6_addr_t ip6_addr;
 } wifi_sta_status_t;
 
+void net_init();
 void wifi_init();
 
 wifi_ap_record_t * wifi_scan(uint16_t *number);
