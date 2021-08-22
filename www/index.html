@@ -522,18 +522,26 @@
                                 </div>
                             </div>
                             <div class="form-row mb-3">
-                                <div class="col-6">
-                                    <label class="d-block">Scan mode <small class="text-muted" data-toggle="tooltip" title="In fast scan mode, WiFi channels are scanned sequentially and a connection is made to the first matching SSID.<br><br>In all channel mode, every channel is scanned and if multiple matching SSIDs are found, the one with the strongest signal is chosen, but the process can be significantly slower.<br><br>This is useful in environments where there are a number of APs with the same SSID covering a large area. If you only have a single AP, fast mode is preferred.">?</small></label>
+                                <div class="col-4">
+                                    <label class="d-block">Scan mode <small class="text-muted" data-toggle="tooltip" title="In fast scan mode, WiFi channels are scanned sequentially and a connection is made to the first matching SSID.<br><br>In full (all channel) mode, every channel is scanned and if multiple matching SSIDs are found, the one with the strongest signal is chosen, but the process can be significantly slower.<br><br>This is useful in environments where there are a number of APs with the same SSID covering a large area. If you only have a single AP, fast mode is preferred.">?</small></label>
                                     <div class="btn-group btn-group-toggle d-flex" data-toggle="buttons">
                                         <label class="btn btn-outline-secondary">
                                             <input type="radio" name="w_sta_scan_mode" value="0" checked> Fast
                                         </label>
                                         <label class="btn btn-outline-secondary">
-                                            <input type="radio" name="w_sta_scan_mode" value="1"> All Channels
+                                            <input type="radio" name="w_sta_scan_mode" value="1"> Full
                                         </label>
                                     </div>
                                 </div>
-                                <div class="col-6">
+                                <div class="col-4">
+                                    <label class="d-block">Hotspot forward <small class="text-muted" data-toggle="tooltip" title="If enabled, internet traffic from the WiFi hotspot is forwarded the main WiFi connection. Be aware that any device that connects to the hotspot will then have access to both networks, so a password for the hotspot is strongly recommended.">?</small></label>
+                                    <div class="btn-group btn-group-toggle d-flex" data-toggle="buttons">
+                                        <label class="btn btn-outline-warning">
+                                            <input type="checkbox" value="1" name="w_sta_ap_fwd"> Forward
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-4">
                                     <label class="d-block">IP config <small class="text-muted" data-toggle="tooltip" title="In DHCP mode, IPs will automatically be configured by the network upon successful connection.<br><br>In static mode, the IPs are hardcoded and must be set up correctly for the given WiFi network, but the connection is faster.">?</small></label>
                                     <div class="btn-group btn-group-toggle d-flex" data-toggle="buttons">
                                         <label class="btn btn-outline-success">

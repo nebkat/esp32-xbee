@@ -311,6 +311,10 @@ const config_item_t CONFIG_ITEMS[] = {
                 .type = CONFIG_ITEM_TYPE_BOOL,
                 .def.bool1 = false
         }, {
+                .key = KEY_CONFIG_WIFI_STA_AP_FORWARD,
+                .type = CONFIG_ITEM_TYPE_BOOL,
+                .def.bool1 = false
+        }, {
                 .key = KEY_CONFIG_WIFI_STA_STATIC,
                 .type = CONFIG_ITEM_TYPE_BOOL,
                 .def.bool1 = false
