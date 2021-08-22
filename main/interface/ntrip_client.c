@@ -35,25 +35,66 @@ static const char *TAG = "NTRIP_CLIENT";
 
 #define BUFFER_SIZE 512
 
+#define GPGGA_HEADER "$GPGGA"
+#define GNGGA_HEADER "$GNGGA"
+#define GGA_END "\r\n"
+
 static const int CASTER_READY_BIT = BIT0;
 
 static int sock = -1;
+
+static TaskHandle_t nmea_gga_send_task = NULL;
 
 static EventGroupHandle_t client_event_group;
 
 static status_led_handle_t status_led = NULL;
 static stream_stats_handle_t stream_stats = NULL;
 
+static char nmea_gga_latest[128] = "";
+
+static void nmea_gga_extract(int32_t length, void *buffer) {
+    void *start = memmem(buffer, length, GPGGA_HEADER, strlen(GPGGA_HEADER));
+    if (start == NULL) start = memmem(buffer, length, GNGGA_HEADER, strlen(GNGGA_HEADER));
+    if (start == NULL) return;
+    void *zero = memmem(start, length - (start - buffer), "\0", 1);
+    void *end = memmem(start, length - (start - buffer), GGA_END, strlen(GGA_END));
+
+    if (end == NULL || (zero != NULL && zero < end)) return;
+
+    unsigned int size = (end - start) + strlen(GGA_END);
+    if (size > (sizeof(nmea_gga_latest) - 1)) return;
+
+    memcpy(nmea_gga_latest, start, size);
+    nmea_gga_latest[size] = '\0';
+}
+
+static void ntrip_client_nmea_gga_send_task(void *ctx) {
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
+    while (true) {
+        int sent = send(sock, nmea_gga_latest, strlen(nmea_gga_latest), 0);
+        if (sent < 0) {
+            destroy_socket(&sock);
+        } else {
+            stream_stats_increment(stream_stats, 0, sent);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(15000));
+    }
+}
+
 static void ntrip_client_uart_handler(void* handler_args, esp_event_base_t base, int32_t length, void* buffer) {
     // Caster connected and ready for data
     if ((xEventGroupGetBits(client_event_group) & CASTER_READY_BIT) == 0) return;
 
-    int sent = send(sock, buffer, length, 0);
+    nmea_gga_extract(length, buffer);
+
+    /*int sent = send(sock, buffer, length, 0);
     if (sent < 0) {
         destroy_socket(&sock);
     } else {
         stream_stats_increment(stream_stats, 0, sent);
-    }
+    }*/
 }
 
 static void ntrip_client_task(void *ctx) {
@@ -119,6 +160,9 @@ static void ntrip_client_task(void *ctx) {
 
         if (status_led != NULL) status_led->active = true;
 
+        // Start sending GGA to caster
+        xTaskCreate(ntrip_client_nmea_gga_send_task, "ntrip_client_gga", 2048, NULL, TASK_PRIORITY_INTERFACE, &nmea_gga_send_task);
+
         // Connected
         xEventGroupSetBits(client_event_group, CASTER_READY_BIT);
 
@@ -131,6 +175,9 @@ static void ntrip_client_task(void *ctx) {
 
         // Disconnected
         xEventGroupSetBits(client_event_group, CASTER_READY_BIT);
+
+        // Stop sending GGA to caster
+        vTaskDelete(nmea_gga_send_task);
 
         if (status_led != NULL) status_led->active = false;
 
