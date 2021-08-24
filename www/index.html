@@ -992,6 +992,15 @@
                                     </div>
                                 </div>
                             </div>
+                            <label class="d-block">Forward UART input: <small class="text-muted" data-toggle="tooltip" title="When enabled all received UART traffic will be forwarded to the connected NTRIP server.">?</small></label>
+                            <div class="btn-group btn-group-toggle d-flex input-group-prepend" data-toggle="buttons">
+                                <label class="btn btn-outline-secondary active">
+                                    <input type="radio" name="ntr_cli_fw_uart" value="1" checked> Yes
+                                </label>
+                                <label class="btn btn-outline-secondary">
+                                    <input type="radio" name="ntr_cli_fw_uart" value="0"> No
+                                </label>
+                            </div>
                         </div>
                     </div>
                     <div class="card mb-3">
@@ -1165,6 +1174,15 @@
                                         <input type="hidden" name="sck_cli_msg" data-formatted="true">
                                     </div>
                                 </div>
+                            </div>
+                            <label class="d-block">Forward UART input: <small class="text-muted" data-toggle="tooltip" title="When enabled all received UART traffic will be forwarded to the connected socket server.">?</small></label>
+                            <div class="btn-group btn-group-toggle d-flex input-group-prepend" data-toggle="buttons">
+                                <label class="btn btn-outline-secondary active">
+                                    <input type="radio" name="sck_cli_fw_uart" value="1" checked> Yes
+                                </label>
+                                <label class="btn btn-outline-secondary">
+                                    <input type="radio" name="sck_cli_fw_uart" value="0"> No
+                                </label>
                             </div>
                         </div>
                     </div>
