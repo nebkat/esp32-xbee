@@ -19,7 +19,6 @@
 #include <esp_wifi.h>
 #include <esp_log.h>
 #include <string.h>
-#include <mdns.h>
 #include <math.h>
 #include <driver/gpio.h>
 #include <sys/param.h>
@@ -30,6 +29,7 @@
 #include <freertos/event_groups.h>
 #include <esp_netif_ip_addr.h>
 #include <lwip/lwip_napt.h>
+#include <esp_mac.h>
 #include "wifi.h"
 #include "config.h"
 

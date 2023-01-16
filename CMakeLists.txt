@@ -3,7 +3,7 @@
 cmake_minimum_required(VERSION 3.5)
 
 # Include additional local components
-set(EXTRA_COMPONENT_DIRS "./components/button")
+# set(EXTRA_COMPONENT_DIRS "./components/button")
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(esp32-xbee)

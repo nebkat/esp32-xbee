@@ -22,17 +22,17 @@
 #include <sys/param.h>
 #include <esp_vfs.h>
 #include <esp_spiffs.h>
-#include <mdns.h>
 #include <config.h>
 #include <log.h>
 #include <core_dump.h>
 #include <util.h>
 #include <lwip/inet.h>
 #include <esp_ota_ops.h>
-#include <esp_netif_sta_list.h>
 #include <stream_stats.h>
 #include <esp32/rom/crc.h>
+#include <esp_wifi_ap_get_sta_list.h>
 #include <lwip/sockets.h>
+#include <esp_timer.h>
 #include "web_server.h"
 
 // Max length a file path can have on storage
@@ -190,12 +190,12 @@ static esp_err_t hotspot_auth(httpd_req_t *req) {
     // ERROR_ACTION(TAG, client_addr.sin6_family != AF_INET, goto _auth_error, "IPv6 connections not supported, IP family %d", client_addr.sin6_family);
 
     wifi_sta_list_t *ap_sta_list = wifi_ap_sta_list();
-    esp_netif_sta_list_t esp_netif_ap_sta_list;
-    esp_netif_get_sta_list(ap_sta_list, &esp_netif_ap_sta_list);
+    wifi_sta_mac_ip_list_t ap_sta_list_mac_ip;
+    esp_wifi_ap_get_sta_list_with_ip(ap_sta_list, &ap_sta_list_mac_ip);
 
     // TODO: Correctly read IPv4?
-    for (int i = 0; i < esp_netif_ap_sta_list.num; i++) {
-        if (esp_netif_ap_sta_list.sta[i].ip.addr == client_addr.sin6_addr.un.u32_addr[3]) return ESP_OK;
+    for (int i = 0; i < ap_sta_list_mac_ip.num; i++) {
+        if (ap_sta_list_mac_ip.sta[i].ip.addr == client_addr.sin6_addr.un.u32_addr[3]) return ESP_OK;
     }
 
     //_auth_error:
@@ -242,10 +242,10 @@ static esp_err_t core_dump_get_handler(httpd_req_t *req) {
 
     httpd_resp_set_type(req, "application/octet-stream");
 
-    const esp_app_desc_t *app_desc = esp_ota_get_app_description();
+    const esp_app_desc_t *app_desc = esp_app_get_description();
 
     char elf_sha256[7];
-    esp_ota_get_app_elf_sha256(elf_sha256, sizeof(elf_sha256));
+    esp_app_get_elf_sha256(elf_sha256, sizeof(elf_sha256));
 
     time_t t = time(NULL);
     char date[20] = "\0";
@@ -310,7 +310,7 @@ static esp_err_t file_check_etag_hash(httpd_req_t *req, char *file_hash_path, ch
             "Could not read hash file %s: %d %s", file_hash_path,
             errno, strerror(errno));
 
-    snprintf(etag, etag_size, "\"%08X\"", crc);
+    snprintf(etag, etag_size, "\"%08X\"", (unsigned int) crc);
 
     // Compare to header sent by client
     size_t if_none_match_length = httpd_req_get_hdr_value_len(req, "If-None-Match") + 1;
@@ -425,7 +425,7 @@ static esp_err_t config_get_handler(httpd_req_t *req) {
 
     cJSON *root = cJSON_CreateObject();
 
-    const esp_app_desc_t *app_desc = esp_ota_get_app_description();
+    const esp_app_desc_t *app_desc = esp_app_get_description();
     cJSON_AddStringToObject(root, "version", app_desc->version);
 
     int config_item_count;
