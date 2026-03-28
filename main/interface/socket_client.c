@@ -79,6 +79,7 @@ static void socket_client_task(void *ctx) {
 
         int err = write(sock, connect_message, strlen(connect_message));
         free(connect_message);
+        connect_message = NULL;
         ERROR_ACTION(TAG, err < 0, goto _error, "Could not send connection message: %d %s", errno, strerror(errno));
 
         ESP_LOGI(TAG, "Successfully connected to %s:%d", host, port);
